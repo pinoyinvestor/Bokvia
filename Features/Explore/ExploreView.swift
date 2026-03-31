@@ -1,0 +1,218 @@
+import SwiftUI
+import MapKit
+
+struct ExploreView: View {
+    @Environment(AppState.self) private var appState
+    @State private var providers: [DiscoverProvider] = []
+    @State private var sections: DiscoverSections?
+    @State private var isLoading = true
+    @State private var viewMode: ViewMode = .list
+    @State private var sortOption: SortOption = .recommended
+    @State private var activeCategory: String?
+    @State private var searchText = ""
+    @State private var page = 1
+    @State private var hasMore = true
+    @State private var errorMessage: String?
+
+    var initialSearch: String = ""
+    var initialCategory: String? = nil
+
+    enum ViewMode { case list, map }
+    enum SortOption: String, CaseIterable {
+        case recommended, top_rated, most_booked, nearest, lowest_price
+        var label: String {
+            switch self {
+            case .recommended: return "Rekommenderat"
+            case .top_rated: return "Högst betyg"
+            case .most_booked: return "Mest bokade"
+            case .nearest: return "Närmast"
+            case .lowest_price: return "Lägst pris"
+            }
+        }
+    }
+
+    private let categoryOptions = [
+        ("hair", "💇 Hår"), ("nails", "💅 Naglar"), ("lashes", "👁️ Fransar"),
+        ("skin", "🧴 Hud"), ("tattoo", "🎨 Tatuering"),
+    ]
+
+    // Built by Christos Ferlachidis & Daniel Hedenberg
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Search
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField(appState.isSv ? "Sök..." : "Search...", text: $searchText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .onSubmit { Task { await search() } }
+                if !searchText.isEmpty {
+                    Button { searchText = ""; Task { await loadProviders() } } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .accessibilityLabel(appState.isSv ? "Rensa sökning" : "Clear search")
+                }
+            }
+            .padding(12)
+            .background(Color(.secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal)
+            .padding(.top, 8)
+
+            // Category pills
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(categoryOptions, id: \.0) { slug, label in
+                        Button {
+                            activeCategory = activeCategory == slug ? nil : slug
+                            Task { await loadProviders() }
+                        } label: {
+                            Text(label)
+                                .font(.caption.weight(.medium))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(activeCategory == slug ? BokviaTheme.accent : Color(.secondarySystemBackground))
+                                .foregroundStyle(activeCategory == slug ? .white : .primary)
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+            }
+
+            // Sort + view toggle
+            HStack {
+                Menu {
+                    ForEach(SortOption.allCases, id: \.self) { option in
+                        Button {
+                            sortOption = option
+                            Task { await loadProviders() }
+                        } label: {
+                            HStack {
+                                Text(option.label)
+                                if sortOption == option { Image(systemName: "checkmark") }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.arrow.down")
+                        Text(sortOption.label)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    viewMode = viewMode == .list ? .map : .list
+                } label: {
+                    Image(systemName: viewMode == .list ? "map" : "list.bullet")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityLabel(viewMode == .list
+                    ? (appState.isSv ? "Visa karta" : "Show map")
+                    : (appState.isSv ? "Visa lista" : "Show list"))
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+
+            // Error message
+            if let error = errorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal)
+                    .padding(.bottom, 4)
+            }
+
+            // Content
+            if viewMode == .map {
+                MapExploreView(providers: providers, locale: appState.language)
+            } else if isLoading {
+                LoadingView()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(providers) { provider in
+                            NavigationLink {
+                                ProviderProfileView(slug: provider.slug)
+                            } label: {
+                                ProviderCard(provider: provider, locale: appState.language)
+                            }
+                            .foregroundStyle(.primary)
+                            .onAppear {
+                                if provider.id == providers.last?.id && hasMore {
+                                    Task { await loadMore() }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+        }
+        .navigationTitle(appState.isSv ? "Utforska" : "Explore")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            if !initialSearch.isEmpty { searchText = initialSearch }
+            if let cat = initialCategory { activeCategory = cat }
+            await loadProviders()
+        }
+    }
+
+    private func loadProviders() async {
+        isLoading = true
+        errorMessage = nil
+        page = 1
+        let loc = LocationManager.shared
+        var path = "/api/providers/discover?lat=\(loc.latitude)&lng=\(loc.longitude)&sort=\(sortOption.rawValue)&page=1&pageSize=\(Config.defaultPageSize)"
+        if let cat = activeCategory { path += "&category=\(cat)" }
+
+        do {
+            let result = try await APIClient.shared.getNoAuth(path, as: PaginatedProviders.self)
+            providers = result.items
+            hasMore = result.hasMore
+        } catch {
+            providers = []
+            errorMessage = appState.isSv ? "Kunde inte ladda. Försök igen." : "Failed to load. Try again."
+        }
+        isLoading = false
+    }
+
+    private func loadMore() async {
+        page += 1
+        let loc = LocationManager.shared
+        var path = "/api/providers/discover?lat=\(loc.latitude)&lng=\(loc.longitude)&sort=\(sortOption.rawValue)&page=\(page)&pageSize=\(Config.defaultPageSize)"
+        if let cat = activeCategory { path += "&category=\(cat)" }
+
+        do {
+            let result = try await APIClient.shared.getNoAuth(path, as: PaginatedProviders.self)
+            providers.append(contentsOf: result.items)
+            hasMore = result.hasMore
+        } catch {
+            page -= 1
+            errorMessage = appState.isSv ? "Kunde inte ladda mer." : "Failed to load more."
+        }
+    }
+
+    private func search() async {
+        guard !searchText.isEmpty else { await loadProviders(); return }
+        isLoading = true
+        errorMessage = nil
+        let q = searchText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        do {
+            let result = try await APIClient.shared.getNoAuth("/api/providers/search?q=\(q)", as: PaginatedProviders.self)
+            providers = result.items
+            hasMore = result.hasMore
+        } catch {
+            errorMessage = appState.isSv ? "Sökningen misslyckades." : "Search failed."
+        }
+        isLoading = false
+    }
+}

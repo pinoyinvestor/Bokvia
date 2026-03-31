@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App Identity -->
+	<key>CFBundleDisplayName</key>
+	<string>Bokvia</string>
+	<key>CFBundleIdentifier</key>
+	<string>se.bokvia.app</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+
+	<!-- Privacy Permission Descriptions (REQUIRED) -->
+	<key>NSCameraUsageDescription</key>
+	<string>Bokvia behöver kameran för att ta profilbilder.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Bokvia behöver åtkomst till dina foton för att välja profilbild.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Bokvia använder din plats för att visa salonger och frisörer nära dig.</string>
+
+	<!-- Push Notifications -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+
+	<!-- Encryption (HTTPS only, no custom encryption) -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
+	<!-- Google Sign-In URL Scheme -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- Replace with actual reversed Google client ID -->
+				<string>com.googleusercontent.apps.REPLACE_WITH_CLIENT_ID</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>Google Sign-In</string>
+		</dict>
+	</array>
+
+	<!-- Device Capabilities -->
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+
+	<!-- Supported Orientations (iPhone = portrait only) -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
+	<!-- App Transport Security (HTTPS everywhere) -->
+	<!-- No exceptions needed — all endpoints use HTTPS -->
+
+	<!-- Status Bar -->
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleDefault</string>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+
+	<!-- Scene Configuration -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+
+	<!-- Quick Actions (3D Touch / Haptic Touch) -->
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>se.bokvia.app.explore</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Utforska</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeSearch</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>se.bokvia.app.bookings</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Mina bokningar</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeDate</string>
+		</dict>
+	</array>
+</dict>
+</plist>
