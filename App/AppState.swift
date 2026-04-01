@@ -7,6 +7,8 @@ class AppState {
     var familyMembers: [FamilyProfile] = []
     var familyError: String?
     var activeBookingProfile: FamilyProfile?
+    var activeProfileType: String = "CUSTOMER"
+    var profiles: [UserProfile] = []
 
     var darkMode: Bool {
         didSet { UserDefaults.standard.set(darkMode, forKey: Config.darkModeKey) }
@@ -37,6 +39,25 @@ class AppState {
     func setUser(_ session: UserSession) {
         currentUser = session
         isAuthenticated = true
+        activeProfileType = session.activeProfileType ?? "CUSTOMER"
+        profiles = session.profiles ?? []
+    }
+
+    func switchProfile(_ profileId: String) async {
+        struct SwitchBody: Encodable { let profileId: String }
+        do {
+            let response = try await APIClient.shared.postAuth(
+                "/api/auth/switch-profile",
+                body: SwitchBody(profileId: profileId),
+                as: AuthResponse.self
+            )
+            let user = response.data.user
+            currentUser = user
+            activeProfileType = user.activeProfileType ?? "CUSTOMER"
+            profiles = user.profiles ?? []
+        } catch {
+            // Switch failed — keep current state
+        }
     }
 
     func loadFamilyMembers() async {
@@ -57,6 +78,8 @@ class AppState {
         currentUser = nil
         familyMembers = []
         activeBookingProfile = nil
+        activeProfileType = "CUSTOMER"
+        profiles = []
         Task {
             await AuthManager.shared.logout()
         }

@@ -7,6 +7,7 @@ struct ProfileView: View {
     @State private var showDeleteSheet = false
     @State private var showChangePassword = false
     @State private var showFamilyManager = false
+    @State private var showRoleSwitcher = false
 
     var body: some View {
         List {
@@ -29,6 +30,29 @@ struct ProfileView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                }
+
+                // Role switcher — only show if user has multiple profiles
+                if appState.profiles.count > 1 {
+                    Button {
+                        showRoleSwitcher = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: roleIcon(appState.activeProfileType))
+                                .foregroundStyle(BokviaTheme.accent)
+                            Text(roleLabel(appState.activeProfileType))
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Text(appState.isSv ? "Byt roll" : "Switch role")
+                                .font(.caption)
+                                .foregroundStyle(BokviaTheme.accent)
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .accessibilityLabel(appState.isSv ? "Byt roll" : "Switch role")
                 }
             }
 
@@ -134,6 +158,27 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showChangePassword) {
             NavigationStack { ChangePasswordView() }
+        }
+        .sheet(isPresented: $showRoleSwitcher) {
+            NavigationStack { RoleSwitcherView() }
+        }
+    }
+
+    private func roleIcon(_ type: String) -> String {
+        switch type {
+        case "CUSTOMER": return "person.fill"
+        case "PROVIDER": return "scissors"
+        case "SALON": return "building.2.fill"
+        default: return "person.fill"
+        }
+    }
+
+    private func roleLabel(_ type: String) -> String {
+        switch type {
+        case "CUSTOMER": return appState.isSv ? "Kund" : "Customer"
+        case "PROVIDER": return appState.isSv ? "Frisör" : "Provider"
+        case "SALON": return appState.isSv ? "Salong" : "Salon"
+        default: return type
         }
     }
 }

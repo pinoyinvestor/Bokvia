@@ -64,9 +64,9 @@ struct UserSession: Decodable, Equatable {
     }
 }
 
-struct UserProfile: Decodable, Equatable {
+struct UserProfile: Codable, Identifiable, Equatable {
     let id: String
-    let type: String
+    let type: String  // CUSTOMER, PROVIDER, SALON
 }
 
 /// GET /api/users/me returns { success: true, data: { user } } or just the user object
