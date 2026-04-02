@@ -9,7 +9,7 @@
 // SPM Dependencies:
 //   - Kingfisher (https://github.com/onevcat/Kingfisher) — image caching
 //   - GoogleSignIn-iOS (https://github.com/google/GoogleSignIn-iOS) — Google OAuth
-//   - stripe-ios (https://github.com/stripe/stripe-ios) — payments
+//   - Note: No Stripe needed — customers pay at the salon
 //   - firebase-ios-sdk (https://github.com/firebase/firebase-ios-sdk) — push + analytics
 //
 // Capabilities:
