@@ -14,6 +14,9 @@ struct MainTabView: View {
     @State private var selectedTab: AppTab = .home
     @State private var unreadMessages = 0
     @State private var unreadNotifications = 0
+    @State private var deepLinkProviderSlug: String?
+    @State private var deepLinkSalonSlug: String?
+    @State private var deepLinkBookingId: String?
 
     var body: some View {
         Group {
@@ -44,6 +47,30 @@ struct MainTabView: View {
             }
             Task { await loadUnreadCounts() }
         }
+        .onChange(of: appState.pendingDeepLink) { _, link in
+            handleDeepLink(link)
+        }
+        .onAppear {
+            if let link = appState.pendingDeepLink {
+                handleDeepLink(link)
+            }
+        }
+    }
+
+    private func handleDeepLink(_ link: DeepLink?) {
+        guard let link = link else { return }
+        appState.pendingDeepLink = nil
+
+        switch link {
+        case .provider(let slug):
+            selectedTab = .home
+            deepLinkProviderSlug = slug
+        case .salon(let slug):
+            selectedTab = .home
+            deepLinkSalonSlug = slug
+        case .booking:
+            selectedTab = .bookings
+        }
     }
 
     // Built by Christos Ferlachidis & Daniel Hedenberg
@@ -52,7 +79,15 @@ struct MainTabView: View {
 
     private var customerTabView: some View {
         TabView(selection: $selectedTab) {
-            NavigationStack { HomeView() }
+            NavigationStack {
+                HomeView()
+                    .navigationDestination(item: $deepLinkProviderSlug) { slug in
+                        ProviderProfileView(slug: slug)
+                    }
+                    .navigationDestination(item: $deepLinkSalonSlug) { slug in
+                        SalonProfileView(slug: slug)
+                    }
+            }
                 .tabItem { Label(appState.isSv ? "Hem" : "Home", systemImage: "house.fill") }
                 .tag(AppTab.home)
 

@@ -6,6 +6,7 @@ struct ProviderTodayView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var actionError: String?
+    @State private var showWalkIn = false
 
     private var totalCount: Int { bookings.count }
     private var freeSlots: Int {
@@ -41,6 +42,21 @@ struct ProviderTodayView: View {
         }
         .navigationTitle(appState.isSv ? "Idag" : "Today")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showWalkIn = true
+                } label: {
+                    Label(appState.isSv ? "Walk-in" : "Walk-in", systemImage: "figure.walk")
+                }
+                .accessibilityLabel(appState.isSv ? "Walk-in bokning" : "Walk-in booking")
+            }
+        }
+        .sheet(isPresented: $showWalkIn) {
+            WalkInBookingView()
+                .environment(appState)
+                .onDisappear { Task { await loadToday() } }
+        }
         .task { await loadToday() }
         .refreshable { await loadToday() }
     }

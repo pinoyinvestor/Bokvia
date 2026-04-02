@@ -10,6 +10,7 @@ struct ProviderCalendarView: View {
     @State private var showCreateSheet = false
     @State private var selectedBooking: ProviderBooking?
     @State private var selectedSlot: (date: String, time: String)?
+    @State private var showWalkIn = false
 
     private let hours = Array(stride(from: 7, through: 19, by: 0.5)).map { $0 }
     private let dayLabels = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"]
@@ -35,6 +36,21 @@ struct ProviderCalendarView: View {
         }
         .navigationTitle(appState.isSv ? "Kalender" : "Calendar")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showWalkIn = true
+                } label: {
+                    Label(appState.isSv ? "Walk-in" : "Walk-in", systemImage: "figure.walk")
+                }
+                .accessibilityLabel(appState.isSv ? "Walk-in bokning" : "Walk-in booking")
+            }
+        }
+        .sheet(isPresented: $showWalkIn) {
+            WalkInBookingView()
+                .environment(appState)
+                .onDisappear { Task { await loadWeekData() } }
+        }
         .task { await loadWeekData() }
         .sheet(isPresented: $showCreateSheet) {
             createBlockSheet

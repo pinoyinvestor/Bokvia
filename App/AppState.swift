@@ -1,5 +1,11 @@
 import SwiftUI
 
+enum DeepLink: Equatable {
+    case provider(slug: String)
+    case salon(slug: String)
+    case booking(id: String)
+}
+
 @Observable
 class AppState {
     var isAuthenticated = false
@@ -9,6 +15,8 @@ class AppState {
     var activeBookingProfile: FamilyProfile?
     var activeProfileType: String = "CUSTOMER"
     var profiles: [UserProfile] = []
+    var needsOnboarding = false
+    var pendingDeepLink: DeepLink?
 
     var darkMode: Bool {
         didSet { UserDefaults.standard.set(darkMode, forKey: Config.darkModeKey) }
@@ -41,6 +49,7 @@ class AppState {
         isAuthenticated = true
         activeProfileType = session.activeProfileType ?? "CUSTOMER"
         profiles = session.profiles ?? []
+        needsOnboarding = session.needsOnboarding ?? false
     }
 
     func switchProfile(_ profileId: String) async {

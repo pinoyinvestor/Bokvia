@@ -8,6 +8,7 @@ struct LoginView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showRegister = false
+    @State private var showForgotPassword = false
 
     var body: some View {
         NavigationStack {
@@ -103,6 +104,14 @@ struct LoginView: View {
                         }
                         .disabled(email.isEmpty || password.isEmpty || isLoading)
                         .opacity(email.isEmpty || password.isEmpty ? 0.6 : 1)
+
+                        Button {
+                            showForgotPassword = true
+                        } label: {
+                            Text(appState.isSv ? "Glömt lösenord?" : "Forgot password?")
+                                .font(.subheadline)
+                                .foregroundStyle(BokviaTheme.accent)
+                        }
                     }
                     .padding(.horizontal, 24)
 
@@ -124,6 +133,9 @@ struct LoginView: View {
             }
             .sheet(isPresented: $showRegister) {
                 RegisterView()
+            }
+            .sheet(isPresented: $showForgotPassword) {
+                ForgotPasswordView()
             }
         }
     }

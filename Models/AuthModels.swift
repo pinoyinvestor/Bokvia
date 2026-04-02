@@ -12,6 +12,19 @@ struct RegisterRequest: Encodable {
     let password: String
 }
 
+struct RegisterWithRoleRequest: Encodable {
+    let firstName: String
+    let lastName: String
+    let email: String
+    let password: String
+    let role: String
+    let displayName: String?
+    let bio: String?
+    let phone: String?
+    let salonName: String?
+    let orgNumber: String?
+}
+
 struct GoogleAuthRequest: Encodable {
     let idToken: String
 }

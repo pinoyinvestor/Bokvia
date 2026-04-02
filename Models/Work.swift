@@ -1,6 +1,9 @@
 import Foundation
 
-struct Work: Decodable, Identifiable {
+struct Work: Decodable, Identifiable, Hashable {
+    static func == (lhs: Work, rhs: Work) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+
     let id: String
     let mediaUrls: [String]
     let caption: String?

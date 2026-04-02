@@ -19,7 +19,13 @@ struct SalonDashboardView: View {
 
                 // Station overview
                 if let stations = stations, stations.total > 0 {
-                    stationCard(stations)
+                    NavigationLink {
+                        StationManagerView()
+                    } label: {
+                        stationCard(stations)
+                    }
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel(appState.isSv ? "Hantera stationer" : "Manage stations")
                 }
 
                 // Built by Christos Ferlachidis & Daniel Hedenberg

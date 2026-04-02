@@ -16,6 +16,8 @@ struct BookingFlowView: View {
     @State private var isBooking = false
     @State private var errorMessage: String?
     @State private var bookingComplete = false
+    @State private var customerNote = ""
+    @State private var showWaitlist = false
 
     enum BookingStep: Int {
         case selectService, selectDate, selectSlot, confirm
@@ -155,10 +157,38 @@ struct BookingFlowView: View {
             } else if isLoadingSlots {
                 LoadingView()
             } else if slots.isEmpty {
-                ContentUnavailableView(
-                    appState.isSv ? "Inga lediga tider" : "No available times",
-                    systemImage: "clock"
-                )
+                VStack(spacing: 16) {
+                    ContentUnavailableView(
+                        appState.isSv ? "Inga lediga tider" : "No available times",
+                        systemImage: "clock"
+                    )
+
+                    Button {
+                        showWaitlist = true
+                    } label: {
+                        Label(
+                            appState.isSv ? "Ställ dig i kö" : "Join waitlist",
+                            systemImage: "bell.badge"
+                        )
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(BokviaTheme.accent)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .accessibilityLabel(appState.isSv ? "Ställ dig i kö för denna tid" : "Join the waitlist for this time")
+                    .sheet(isPresented: $showWaitlist) {
+                        if let service = selectedService {
+                            WaitlistView(
+                                providerId: providerId,
+                                serviceId: service.id,
+                                providerName: providerName,
+                                serviceName: service.name(locale: appState.language)
+                            )
+                        }
+                    }
+                }
             } else {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 80))], spacing: 8) {
@@ -206,6 +236,18 @@ struct BookingFlowView: View {
                 }
             }
             .padding()
+            .background(Color(.secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal)
+
+            // Optional message to provider
+            TextField(
+                appState.isSv ? "Meddelande till frisören (valfritt)" : "Message to provider (optional)",
+                text: $customerNote,
+                axis: .vertical
+            )
+            .lineLimit(2...4)
+            .padding(12)
             .background(Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .padding(.horizontal)
@@ -306,8 +348,13 @@ struct BookingFlowView: View {
         struct BookRequest: Encodable {
             let serviceId: String
             let familyProfileId: String?
+            let customerNote: String?
         }
-        let body = BookRequest(serviceId: serviceId, familyProfileId: appState.activeBookingProfile?.id)
+        let body = BookRequest(
+            serviceId: serviceId,
+            familyProfileId: appState.activeBookingProfile?.id,
+            customerNote: customerNote.isEmpty ? nil : customerNote
+        )
 
         do {
             _ = try await APIClient.shared.post("/api/slots/\(slotId)/book", body: body, as: Booking.self)

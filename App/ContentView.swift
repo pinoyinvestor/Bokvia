@@ -8,6 +8,8 @@ struct ContentView: View {
         Group {
             if isCheckingSession {
                 splashView
+            } else if appState.isAuthenticated && appState.needsOnboarding {
+                OnboardingView()
             } else if appState.isAuthenticated {
                 MainTabView()
             } else {

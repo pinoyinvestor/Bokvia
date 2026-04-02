@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct ProfileView: View {
     @Environment(AppState.self) private var appState
@@ -8,20 +9,40 @@ struct ProfileView: View {
     @State private var showChangePassword = false
     @State private var showFamilyManager = false
     @State private var showRoleSwitcher = false
+    @State private var showAvatarActionSheet = false
+    @State private var imagePicker = ImagePickerManager()
+    @State private var photoSelection: PhotosPickerItem?
+    @State private var isUploadingAvatar = false
 
     var body: some View {
         List {
             // User header
             Section {
                 HStack(spacing: 14) {
-                    AsyncImage(url: URL(string: appState.currentUser?.avatarUrl ?? "")) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        Circle().fill(BokviaTheme.accentLight)
-                            .overlay(Text(appState.currentUser?.initials ?? "?").font(.title3.bold()).foregroundStyle(BokviaTheme.accent))
+                    ZStack(alignment: .bottomTrailing) {
+                        AsyncImage(url: URL(string: appState.currentUser?.avatarUrl ?? "")) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            Circle().fill(BokviaTheme.accentLight)
+                                .overlay(Text(appState.currentUser?.initials ?? "?").font(.title3.bold()).foregroundStyle(BokviaTheme.accent))
+                        }
+                        .frame(width: 56, height: 56)
+                        .clipShape(Circle())
+                        .overlay {
+                            if isUploadingAvatar {
+                                Circle().fill(.ultraThinMaterial)
+                                ProgressView()
+                            }
+                        }
+
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.white)
+                            .padding(4)
+                            .background(BokviaTheme.accent)
+                            .clipShape(Circle())
                     }
-                    .frame(width: 56, height: 56)
-                    .clipShape(Circle())
+                    .onTapGesture { showAvatarActionSheet = true }
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(appState.currentUser?.fullName ?? "")
@@ -118,6 +139,18 @@ struct ProfileView: View {
                 } label: {
                     Label(appState.isSv ? "Hjälp & support" : "Help & support", systemImage: "questionmark.circle")
                 }
+
+                NavigationLink {
+                    PrivacyPolicyView()
+                } label: {
+                    Label(appState.isSv ? "Integritetspolicy" : "Privacy Policy", systemImage: "lock.shield")
+                }
+
+                NavigationLink {
+                    TermsView()
+                } label: {
+                    Label(appState.isSv ? "Användarvillkor" : "Terms of Service", systemImage: "doc.text")
+                }
             }
 
             // Danger zone
@@ -162,6 +195,77 @@ struct ProfileView: View {
         .sheet(isPresented: $showRoleSwitcher) {
             NavigationStack { RoleSwitcherView() }
         }
+        .confirmationDialog(
+            appState.isSv ? "Byt profilbild" : "Change profile photo",
+            isPresented: $showAvatarActionSheet,
+            titleVisibility: .visible
+        ) {
+            Button(appState.isSv ? "Ta foto" : "Take photo") {
+                imagePicker.requestCamera()
+            }
+            Button(appState.isSv ? "Välj från bibliotek" : "Choose from library") {
+                imagePicker.requestPhotoLibrary()
+            }
+        }
+        .fullScreenCover(isPresented: $imagePicker.showCameraSheet) {
+            CameraView(image: $imagePicker.selectedImage)
+                .ignoresSafeArea()
+        }
+        .photosPicker(isPresented: $imagePicker.showPhotoPicker, selection: $photoSelection, matching: .images)
+        .onChange(of: photoSelection) { _, newItem in
+            guard let item = newItem else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let uiImage = UIImage(data: data) {
+                    imagePicker.selectedImage = uiImage
+                }
+            }
+        }
+        .onChange(of: imagePicker.selectedImage) { _, newImage in
+            guard let image = newImage else { return }
+            Task { await uploadAvatar(image) }
+        }
+        .alert(appState.isSv ? "Åtkomst nekad" : "Access denied", isPresented: $imagePicker.showPermissionAlert) {
+            Button(appState.isSv ? "Inställningar" : "Settings") { imagePicker.openSettings() }
+            Button(appState.isSv ? "Avbryt" : "Cancel", role: .cancel) {}
+        } message: {
+            Text(imagePicker.permissionAlertMessage)
+        }
+    }
+
+    private func uploadAvatar(_ image: UIImage) async {
+        guard let data = imagePicker.compressImage(image) else { return }
+        isUploadingAvatar = true
+        do {
+            struct AvatarResponse: Decodable { let avatarUrl: String }
+            let response = try await APIClient.shared.uploadImage(
+                "/api/users/me/avatar",
+                imageData: data,
+                filename: "avatar.jpg",
+                as: AvatarResponse.self
+            )
+            appState.currentUser = UserSession(
+                id: appState.currentUser!.id,
+                email: appState.currentUser!.email,
+                firstName: appState.currentUser!.firstName,
+                lastName: appState.currentUser!.lastName,
+                avatarUrl: response.avatarUrl,
+                phone: appState.currentUser!.phone,
+                gender: appState.currentUser!.gender,
+                dateOfBirth: appState.currentUser!.dateOfBirth,
+                locale: appState.currentUser!.locale,
+                roles: appState.currentUser!.roles,
+                activeProfileId: appState.currentUser!.activeProfileId,
+                activeProfileType: appState.currentUser!.activeProfileType,
+                needsOnboarding: appState.currentUser!.needsOnboarding,
+                profiles: appState.currentUser!.profiles
+            )
+            HapticManager.success()
+        } catch {
+            HapticManager.error()
+        }
+        isUploadingAvatar = false
+        imagePicker.selectedImage = nil
     }
 
     private func roleIcon(_ type: String) -> String {

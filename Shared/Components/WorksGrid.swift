@@ -24,10 +24,20 @@ struct WorksGrid: View {
 
 struct WorkCell: View {
     let work: Work
+    @State private var isLiked: Bool
+    @State private var isSaved: Bool
+    @State private var likeCount: Int
+
+    init(work: Work) {
+        self.work = work
+        _isLiked = State(initialValue: work.isLiked ?? false)
+        _isSaved = State(initialValue: work.isSaved ?? false)
+        _likeCount = State(initialValue: work.likeCount)
+    }
 
     var body: some View {
         GeometryReader { geo in
-            ZStack(alignment: .bottomLeading) {
+            ZStack {
                 if let url = work.mediaUrls.first, let imageURL = URL(string: url) {
                     AsyncImage(url: imageURL) { image in
                         image.resizable().scaledToFill()
@@ -56,23 +66,93 @@ struct WorkCell: View {
                     .accessibilityLabel("\(work.mediaUrls.count) photos")
                 }
 
-                // Like count
-                if work.likeCount > 0 {
-                    HStack(spacing: 2) {
-                        Image(systemName: "heart.fill")
-                            .font(.caption2)
-                        Text("\(work.likeCount)")
-                            .font(.caption2.weight(.semibold))
+                // Overlay action buttons
+                VStack {
+                    Spacer()
+                    HStack(spacing: 0) {
+                        // Like count badge
+                        if likeCount > 0 {
+                            HStack(spacing: 2) {
+                                Image(systemName: isLiked ? "heart.fill" : "heart.fill")
+                                    .font(.caption2)
+                                Text("\(likeCount)")
+                                    .font(.caption2.weight(.semibold))
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(.black.opacity(0.5))
+                            .clipShape(Capsule())
+                            .padding(6)
+                        }
+
+                        Spacer()
+
+                        // Action buttons
+                        VStack(spacing: 6) {
+                            Button {
+                                Task { await toggleLike() }
+                            } label: {
+                                Image(systemName: isLiked ? "heart.fill" : "heart")
+                                    .font(.caption)
+                                    .foregroundStyle(isLiked ? .red : .white)
+                                    .frame(width: 28, height: 28)
+                                    .background(.black.opacity(0.5))
+                                    .clipShape(Circle())
+                            }
+                            .accessibilityLabel(isLiked ? "Unlike" : "Like")
+
+                            Button {
+                                Task { await toggleSave() }
+                            } label: {
+                                Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                                    .font(.caption)
+                                    .foregroundStyle(isSaved ? .yellow : .white)
+                                    .frame(width: 28, height: 28)
+                                    .background(.black.opacity(0.5))
+                                    .clipShape(Circle())
+                            }
+                            .accessibilityLabel(isSaved ? "Unsave" : "Save")
+                        }
+                        .padding(6)
                     }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(.black.opacity(0.5))
-                    .clipShape(Capsule())
-                    .padding(6)
                 }
             }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    private func toggleLike() async {
+        let wasLiked = isLiked
+        isLiked.toggle()
+        likeCount += isLiked ? 1 : -1
+        HapticManager.light()
+        do {
+            if wasLiked {
+                try await APIClient.shared.delete("/api/works/\(work.id)/like")
+            } else {
+                struct Empty: Encodable {}
+                _ = try await APIClient.shared.post("/api/works/\(work.id)/like", body: Empty(), as: EmptyResponse.self)
+            }
+        } catch {
+            isLiked = wasLiked
+            likeCount += wasLiked ? 1 : -1
+        }
+    }
+
+    private func toggleSave() async {
+        let wasSaved = isSaved
+        isSaved.toggle()
+        HapticManager.light()
+        do {
+            if wasSaved {
+                try await APIClient.shared.delete("/api/works/\(work.id)/save")
+            } else {
+                struct Empty: Encodable {}
+                _ = try await APIClient.shared.post("/api/works/\(work.id)/save", body: Empty(), as: EmptyResponse.self)
+            }
+        } catch {
+            isSaved = wasSaved
+        }
     }
 }

@@ -8,6 +8,7 @@ struct ProviderWorksView: View {
     @State private var errorMessage: String?
     @State private var showUploadSheet = false
     @State private var providerId: String?
+    @State private var selectedWork: Work?
 
     var body: some View {
         Group {
@@ -98,7 +99,10 @@ struct ProviderWorksView: View {
             .padding(.horizontal)
 
             WorksGrid(works: works) { work in
-                // Could navigate to detail in the future
+                selectedWork = work
+            }
+            .navigationDestination(item: $selectedWork) { work in
+                WorkDetailView(work: work)
             }
 
             // Stats below grid

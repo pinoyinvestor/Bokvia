@@ -6,6 +6,7 @@ struct BookingDetailView: View {
     let booking: Booking
     @State private var showCancelConfirm = false
     @State private var isCancelling = false
+    @State private var showLeaveReview = false
 
     var body: some View {
         ScrollView {
@@ -103,11 +104,39 @@ struct BookingDetailView: View {
                     }
                     .padding(.horizontal)
                 }
+
+                // Leave review for completed bookings
+                if booking.statusEnum == .completed {
+                    Button {
+                        showLeaveReview = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "star")
+                            Text(appState.isSv ? "Lämna omdöme" : "Leave a review")
+                        }
+                        .font(.subheadline.weight(.medium))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(BokviaTheme.accent)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .padding(.horizontal)
+                }
             }
             .padding(.bottom, 40)
         }
         .navigationTitle(appState.isSv ? "Bokningsdetaljer" : "Booking details")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showLeaveReview) {
+            NavigationStack {
+                LeaveReviewView(
+                    providerId: booking.provider?.id ?? "",
+                    bookingId: booking.id,
+                    providerName: booking.provider?.displayName ?? ""
+                )
+            }
+        }
         .alert(appState.isSv ? "Avboka?" : "Cancel booking?", isPresented: $showCancelConfirm) {
             Button(appState.isSv ? "Ja, avboka" : "Yes, cancel", role: .destructive) {
                 Task { await cancelBooking() }

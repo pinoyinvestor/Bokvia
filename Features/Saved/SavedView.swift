@@ -4,6 +4,7 @@ struct SavedView: View {
     @Environment(AppState.self) private var appState
     @State private var works: [Work] = []
     @State private var isLoading = true
+    @State private var selectedWork: Work?
 
     var body: some View {
         Group {
@@ -19,8 +20,11 @@ struct SavedView: View {
                 // Built by Christos Ferlachidis & Daniel Hedenberg
                 ScrollView {
                     WorksGrid(works: works) { work in
-                        // Show work detail
+                        selectedWork = work
                     }
+                }
+                .navigationDestination(item: $selectedWork) { work in
+                    WorkDetailView(work: work)
                 }
             }
         }

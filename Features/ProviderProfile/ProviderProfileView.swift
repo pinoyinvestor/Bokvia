@@ -12,6 +12,7 @@ struct ProviderProfileView: View {
     @State private var selectedTab: ProfileTab = .portfolio
     @State private var showBooking = false
     @State private var selectedService: Service?
+    @State private var selectedWork: Work?
 
     enum ProfileTab: String, CaseIterable {
         case portfolio = "Portfolio"
@@ -90,7 +91,10 @@ struct ProviderProfileView: View {
                                     .frame(height: 200)
                             } else {
                                 WorksGrid(works: works) { work in
-                                    // Show work detail
+                                    selectedWork = work
+                                }
+                                .navigationDestination(item: $selectedWork) { work in
+                                    WorkDetailView(work: work)
                                 }
                             }
                         case .services:
