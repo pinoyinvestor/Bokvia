@@ -9,6 +9,7 @@ struct ExploreView: View {
     @State private var viewMode: ViewMode = .list
     @State private var sortOption: SortOption = .recommended
     @State private var activeCategory: String?
+    @State private var activeSubcategory: String?
     @State private var searchText = ""
     @State private var page = 1
     @State private var hasMore = true
@@ -34,6 +35,14 @@ struct ExploreView: View {
     private let categoryOptions = [
         ("hair", "💇 Hår"), ("nails", "💅 Naglar"), ("lashes", "👁️ Fransar"),
         ("skin", "🧴 Hud"), ("tattoo", "🎨 Tatuering"),
+    ]
+
+    private let subcategoryMap: [String: [(slug: String, label: String)]] = [
+        "hair": [("haircut", "Klippning"), ("coloring", "Färgning"), ("styling", "Styling"), ("extensions", "Extensions")],
+        "nails": [("manicure", "Manikyr"), ("pedicure", "Pedikyr"), ("gel", "Gel"), ("acrylics", "Akryl")],
+        "lashes": [("extensions_l", "Extensions"), ("lift", "Lash lift"), ("tint", "Färgning")],
+        "skin": [("facial", "Ansiktsbehandling"), ("peeling", "Peeling"), ("laser", "Laser")],
+        "tattoo": [("tattoo_new", "Ny tatuering"), ("cover_up", "Cover-up"), ("removal", "Borttagning")],
     ]
 
     // Built by Christos Ferlachidis & Daniel Hedenberg
@@ -69,6 +78,7 @@ struct ExploreView: View {
                             Button {
                                 let newCategory = activeCategory == slug ? nil : slug
                                 activeCategory = newCategory
+                                activeSubcategory = nil
                                 if let selected = newCategory {
                                     withAnimation {
                                         proxy.scrollTo(selected, anchor: .leading)
@@ -89,6 +99,29 @@ struct ExploreView: View {
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 8)
+                }
+            }
+
+            // Subcategory pills — show when a category is selected
+            if let cat = activeCategory, let subs = subcategoryMap[cat] {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(subs, id: \.slug) { sub in
+                            Button {
+                                activeSubcategory = activeSubcategory == sub.slug ? nil : sub.slug
+                                Task { await loadProviders() }
+                            } label: {
+                                Text(sub.label)
+                                    .font(.caption2.weight(.medium))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(activeSubcategory == sub.slug ? BokviaTheme.accent.opacity(0.15) : Color(.tertiarySystemBackground))
+                                    .foregroundStyle(activeSubcategory == sub.slug ? BokviaTheme.accent : .secondary)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
                 }
             }
 
@@ -182,6 +215,7 @@ struct ExploreView: View {
         let loc = LocationManager.shared
         var path = "/api/providers/discover?lat=\(loc.latitude)&lng=\(loc.longitude)&sort=\(sortOption.rawValue)&page=1&pageSize=\(Config.defaultPageSize)"
         if let cat = activeCategory { path += "&category=\(cat)" }
+        if let sub = activeSubcategory { path += "&subcategory=\(sub)" }
 
         do {
             let result = try await APIClient.shared.getNoAuth(path, as: PaginatedProviders.self)
@@ -199,6 +233,7 @@ struct ExploreView: View {
         let loc = LocationManager.shared
         var path = "/api/providers/discover?lat=\(loc.latitude)&lng=\(loc.longitude)&sort=\(sortOption.rawValue)&page=\(page)&pageSize=\(Config.defaultPageSize)"
         if let cat = activeCategory { path += "&category=\(cat)" }
+        if let sub = activeSubcategory { path += "&subcategory=\(sub)" }
 
         do {
             let result = try await APIClient.shared.getNoAuth(path, as: PaginatedProviders.self)

@@ -35,6 +35,13 @@ struct ProviderCard: View {
 
                 // Built by Christos Ferlachidis & Daniel Hedenberg
 
+                // Price — prominent
+                if let price = provider.startingPrice {
+                    Text(locale == "en" ? "From \(Int(price)) kr" : "Från \(Int(price)) kr")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(BokviaTheme.accent)
+                }
+
                 if let city = provider.city {
                     HStack(spacing: 4) {
                         Image(systemName: "mappin")
@@ -63,10 +70,15 @@ struct ProviderCard: View {
                         }
                     }
 
-                    if let price = provider.startingPrice {
-                        Text("Från \(Int(price)) kr")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    // Social proof — booking count
+                    if let count = provider.bookingsCount, count > 0 {
+                        HStack(spacing: 2) {
+                            Image(systemName: "calendar.badge.checkmark")
+                                .font(.caption2)
+                            Text(locale == "en" ? "\(count) bookings" : "\(count) bokningar")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.secondary)
                     }
                 }
 
@@ -87,9 +99,18 @@ struct ProviderCard: View {
 
             Spacer()
 
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            // Boka button
+            VStack {
+                Spacer()
+                Text(locale == "en" ? "Book" : "Boka")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(BokviaTheme.accent)
+                    .foregroundStyle(.white)
+                    .clipShape(Capsule())
+                Spacer()
+            }
         }
         .padding(12)
         .background(Color(.secondarySystemBackground))

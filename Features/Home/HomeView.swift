@@ -18,34 +18,7 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Greeting
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(greeting)
-                            .font(.title2.bold())
-                        if let city = LocationManager.shared.city {
-                            HStack(spacing: 4) {
-                                Image(systemName: "mappin")
-                                    .font(.caption2)
-                                Text(city)
-                                    .font(.caption)
-                            }
-                            .foregroundStyle(.secondary)
-                        }
-                    }
-                    Spacer()
-                    avatarView
-                }
-                .padding(.horizontal)
-
-                // Family member switcher
-                if !appState.familyMembers.isEmpty {
-                    familyPills
-                }
-
-                // Built by Christos Ferlachidis & Daniel Hedenberg
-
-                // Search bar
+                // Search bar — top priority
                 NavigationLink {
                     ExploreView(initialSearch: searchText)
                 } label: {
@@ -84,6 +57,22 @@ struct HomeView: View {
                     }
                     .padding(.horizontal)
                 }
+
+                // Hero greeting
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(greeting)
+                            .font(.title.bold())
+                        Text(appState.isSv ? "Boka behandlingar nära dig" : "Book treatments near you")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    avatarView
+                }
+                .padding(.horizontal)
+
+                // Built by Christos Ferlachidis & Daniel Hedenberg
 
                 // Next booking
                 if let booking = nextBooking {
@@ -150,42 +139,7 @@ struct HomeView: View {
         .accessibilityLabel(appState.isSv ? "Profilbild" : "Profile picture")
     }
 
-    private var familyPills: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                Text(appState.isSv ? "Bokar för:" : "Booking for:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Button {
-                    appState.switchBookingProfile(nil)
-                } label: {
-                    Text(appState.currentUser?.firstName ?? (appState.isSv ? "Jag" : "Me"))
-                        .font(.caption.weight(.medium))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(appState.activeBookingProfile == nil ? BokviaTheme.accent : Color(.secondarySystemBackground))
-                        .foregroundStyle(appState.activeBookingProfile == nil ? .white : .primary)
-                        .clipShape(Capsule())
-                }
-
-                ForEach(appState.familyMembers) { member in
-                    Button {
-                        appState.switchBookingProfile(member)
-                    } label: {
-                        Text(member.name)
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(appState.activeBookingProfile?.id == member.id ? BokviaTheme.accent : Color(.secondarySystemBackground))
-                            .foregroundStyle(appState.activeBookingProfile?.id == member.id ? .white : .primary)
-                            .clipShape(Capsule())
-                    }
-                }
-            }
-            .padding(.horizontal)
-        }
-    }
+    // Family member switcher removed from home — available in booking flow
 
     private func nextBookingCard(_ booking: Booking) -> some View {
         NavigationLink {
