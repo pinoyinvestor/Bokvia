@@ -7,6 +7,7 @@ struct HomeView: View {
     @State private var searchText = ""
     @State private var nextBooking: Booking?
     @State private var topSalons: [DiscoverSalon] = []
+    @State private var topRatedProviders: [DiscoverProvider] = []
 
     private let categories: [(emoji: String, key: String, slug: String)] = [
         ("💇", "Hår", "hair"),
@@ -85,25 +86,41 @@ struct HomeView: View {
                     LoadingView()
                         .frame(height: 200)
                 } else if let feed = feed {
+                    // Following
                     if let following = feed.following, !following.isEmpty {
                         sectionHeader(appState.isSv ? "Följer" : "Following")
                         providerRow(following)
                     }
 
-                    // Topprankade salonger nära dig
+                    // SECTION 1: Topprankade — social proof, quality signal
+                    let topRated = topRatedForDisplay
+                    if !topRated.isEmpty {
+                        sectionHeaderWithAction(
+                            icon: "⭐",
+                            title: appState.isSv ? "Topprankade" : "Top Rated",
+                            destination: "explore?sort=top_rated"
+                        )
+                        topRatedRow(topRated)
+                    }
+
+                    // SECTION 2: Topp Behandlare nära dig — individual providers by rating
+                    if !topRatedProviders.isEmpty {
+                        sectionHeaderWithAction(
+                            icon: "💇",
+                            title: appState.isSv ? "Topp behandlare" : "Top Providers",
+                            destination: "explore?sort=top_rated"
+                        )
+                        topProviderRow(topRatedProviders)
+                    }
+
+                    // SECTION 3: Topp Salonger nära dig — salons by rating
                     if !topSalons.isEmpty {
-                        sectionHeader(appState.isSv ? "Topprankade salonger nära dig" : "Top-rated salons near you")
+                        sectionHeaderWithAction(
+                            icon: "🏪",
+                            title: appState.isSv ? "Topp salonger" : "Top Salons",
+                            destination: "explore?tab=salons"
+                        )
                         salonRow(topSalons)
-                    }
-
-                    if let trending = feed.trending, !trending.isEmpty {
-                        sectionHeader(appState.isSv ? "Topprankade behandlare nära dig" : "Top-rated providers near you")
-                        providerRow(trending)
-                    }
-
-                    if let nearby = feed.nearby, !nearby.isEmpty {
-                        sectionHeader(appState.isSv ? "Nära dig" : "Near you")
-                        providerRow(nearby)
                     }
                 }
             }
@@ -117,6 +134,13 @@ struct HomeView: View {
         .refreshable {
             await loadData()
         }
+    }
+
+    // Combine topRankedThisMonth from feed with topRatedProviders
+    private var topRatedForDisplay: [DiscoverProvider] {
+        if let topRated = feed?.topRated, !topRated.isEmpty { return topRated }
+        if let trending = feed?.trending, !trending.isEmpty { return trending }
+        return topRatedProviders
     }
 
     private var greeting: String {
@@ -145,8 +169,6 @@ struct HomeView: View {
         .clipShape(Circle())
         .accessibilityLabel(appState.isSv ? "Profilbild" : "Profile picture")
     }
-
-    // Family member switcher removed from home — available in booking flow
 
     private func nextBookingCard(_ booking: Booking) -> some View {
         NavigationLink {
@@ -188,6 +210,28 @@ struct HomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal)
     }
+
+    private func sectionHeaderWithAction(icon: String, title: String, destination: String) -> some View {
+        HStack {
+            HStack(spacing: 6) {
+                Text(icon)
+                    .font(.callout)
+                Text(title)
+                    .font(.headline)
+            }
+            Spacer()
+            NavigationLink {
+                ExploreView()
+            } label: {
+                Text(appState.isSv ? "Visa alla" : "See all")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(BokviaTheme.accent)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    // MARK: - Following Row
 
     private func providerRow(_ providers: [DiscoverProvider]) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -231,6 +275,135 @@ struct HomeView: View {
             }
         }
         .frame(width: 90)
+    }
+
+    // MARK: - Section 1: Top Rated Row
+
+    private func topRatedRow(_ providers: [DiscoverProvider]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(Array(providers.prefix(10))) { provider in
+                    NavigationLink {
+                        ProviderProfileView(slug: provider.slug)
+                    } label: {
+                        VStack(spacing: 6) {
+                            AsyncImage(url: URL(string: provider.avatarUrl ?? "")) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                Circle().fill(BokviaTheme.gray200)
+                            }
+                            .frame(width: 64, height: 64)
+                            .clipShape(Circle())
+
+                            Text(provider.displayName)
+                                .font(.caption.weight(.medium))
+                                .lineLimit(1)
+
+                            if provider.ratingAvg > 0 {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "star.fill")
+                                        .font(.caption2)
+                                        .foregroundStyle(.orange)
+                                    Text(String(format: "%.1f", provider.ratingAvg))
+                                        .font(.caption2.bold())
+                                    if provider.reviewCount > 0 {
+                                        Text("(\(provider.reviewCount))")
+                                            .font(.system(size: 9))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                            }
+
+                            if let price = provider.startingPrice, price > 0 {
+                                Text("\(appState.isSv ? "Från" : "From") \(Int(price)) kr")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(width: 100)
+                    }
+                    .foregroundStyle(.primary)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    // MARK: - Section 2: Top Provider Row (with city + work modes)
+
+    private func topProviderRow(_ providers: [DiscoverProvider]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(Array(providers.prefix(10))) { provider in
+                    NavigationLink {
+                        ProviderProfileView(slug: provider.slug)
+                    } label: {
+                        VStack(spacing: 6) {
+                            AsyncImage(url: URL(string: provider.avatarUrl ?? "")) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                Circle().fill(BokviaTheme.gray200)
+                            }
+                            .frame(width: 64, height: 64)
+                            .clipShape(Circle())
+
+                            Text(provider.displayName)
+                                .font(.caption.weight(.medium))
+                                .lineLimit(1)
+
+                            if provider.ratingAvg > 0 {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "star.fill")
+                                        .font(.caption2)
+                                        .foregroundStyle(.orange)
+                                    Text(String(format: "%.1f", provider.ratingAvg))
+                                        .font(.caption2)
+                                }
+                            }
+
+                            if let city = provider.city {
+                                Text(city)
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                            }
+
+                            if let price = provider.startingPrice, price > 0 {
+                                Text("\(appState.isSv ? "Från" : "From") \(Int(price)) kr")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let modes = provider.workModes, !modes.isEmpty {
+                                HStack(spacing: 3) {
+                                    ForEach(modes.prefix(2), id: \.self) { mode in
+                                        Text(workModeLabel(mode))
+                                            .font(.system(size: 8, weight: .medium))
+                                            .foregroundStyle(.secondary)
+                                            .padding(.horizontal, 5)
+                                            .padding(.vertical, 2)
+                                            .background(Color(.secondarySystemBackground))
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                            }
+                        }
+                        .frame(width: 100)
+                    }
+                    .foregroundStyle(.primary)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    private func workModeLabel(_ mode: String) -> String {
+        switch mode {
+        case "SALON": return appState.isSv ? "Salong" : "Salon"
+        case "MOBILE": return appState.isSv ? "Mobil" : "Mobile"
+        case "HOME": return appState.isSv ? "Hemma" : "Home"
+        default: return mode
+        }
     }
 
     // MARK: - Salon Row
@@ -322,10 +495,15 @@ struct HomeView: View {
             "/api/salons/discover?lat=\(lat)&lng=\(lng)&distance=50",
             as: PaginatedSalons.self
         )
+        async let topRatedResult: PaginatedProviders? = try? await APIClient.shared.getNoAuth(
+            "/api/providers/discover?lat=\(lat)&lng=\(lng)&radius=50&sort=top_rated&pageSize=10",
+            as: PaginatedProviders.self
+        )
 
         feed = await feedResult
         nextBooking = await nextResult?.booking
-        topSalons = Array((await salonsResult)?.items.prefix(5) ?? [])
+        topSalons = Array((await salonsResult)?.items.prefix(10) ?? [])
+        topRatedProviders = (await topRatedResult)?.items ?? []
         isLoading = false
     }
 }
