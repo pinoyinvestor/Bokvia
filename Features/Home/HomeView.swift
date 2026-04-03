@@ -7,7 +7,6 @@ struct HomeView: View {
     @State private var searchText = ""
     @State private var nextBooking: Booking?
     @State private var topSalons: [DiscoverSalon] = []
-    @State private var mostBooked: [DiscoverProvider] = []
 
     private let categories: [(emoji: String, key: String, slug: String)] = [
         ("💇", "Hår", "hair"),
@@ -91,20 +90,14 @@ struct HomeView: View {
                         providerRow(following)
                     }
 
-                    // Topp Salonger
+                    // Topprankade salonger nära dig
                     if !topSalons.isEmpty {
-                        sectionHeader(appState.isSv ? "Topp Salonger" : "Top Salons")
+                        sectionHeader(appState.isSv ? "Topprankade salonger nära dig" : "Top-rated salons near you")
                         salonRow(topSalons)
                     }
 
-                    // Mest Bokade
-                    if !mostBooked.isEmpty {
-                        sectionHeader(appState.isSv ? "Mest Bokade" : "Most Booked")
-                        mostBookedRow(mostBooked)
-                    }
-
                     if let trending = feed.trending, !trending.isEmpty {
-                        sectionHeader(appState.isSv ? "Populärt denna vecka" : "Trending this week")
+                        sectionHeader(appState.isSv ? "Topprankade behandlare nära dig" : "Top-rated providers near you")
                         providerRow(trending)
                     }
 
@@ -312,67 +305,6 @@ struct HomeView: View {
         .frame(width: 100)
     }
 
-    // MARK: - Most Booked Row
-
-    private func mostBookedRow(_ providers: [DiscoverProvider]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(providers) { provider in
-                    NavigationLink {
-                        ProviderProfileView(slug: provider.slug)
-                    } label: {
-                        mostBookedCard(provider)
-                    }
-                    .foregroundStyle(.primary)
-                }
-            }
-            .padding(.horizontal)
-        }
-    }
-
-    private func mostBookedCard(_ provider: DiscoverProvider) -> some View {
-        VStack(spacing: 6) {
-            AsyncImage(url: URL(string: provider.avatarUrl ?? "")) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                Circle().fill(BokviaTheme.gray200)
-            }
-            .frame(width: 64, height: 64)
-            .clipShape(Circle())
-
-            Text(provider.displayName)
-                .font(.caption.weight(.medium))
-                .lineLimit(1)
-
-            if provider.ratingAvg > 0 {
-                HStack(spacing: 2) {
-                    Image(systemName: "star.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                    Text(String(format: "%.1f", provider.ratingAvg))
-                        .font(.caption2)
-                }
-            }
-
-            if let count = provider.bookingsCount, count > 0 {
-                Text("\(count) \(appState.isSv ? "bokningar" : "bookings")")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.orange.opacity(0.12))
-                    .clipShape(Capsule())
-            }
-
-            if let price = provider.startingPrice, price > 0 {
-                Text("\(appState.isSv ? "Från" : "From") \(Int(price)) kr")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(width: 100)
-    }
-
     private func loadData() async {
         let loc = LocationManager.shared
         let lat = loc.hasLocation ? loc.latitude : Config.defaultLatitude
@@ -390,15 +322,10 @@ struct HomeView: View {
             "/api/salons/discover?lat=\(lat)&lng=\(lng)&distance=50",
             as: PaginatedSalons.self
         )
-        async let mostBookedResult: PaginatedProviders? = try? await APIClient.shared.getNoAuth(
-            "/api/providers/discover?lat=\(lat)&lng=\(lng)&sort=most_booked&page=1&pageSize=5",
-            as: PaginatedProviders.self
-        )
 
         feed = await feedResult
         nextBooking = await nextResult?.booking
         topSalons = Array((await salonsResult)?.items.prefix(5) ?? [])
-        mostBooked = (await mostBookedResult)?.items ?? []
         isLoading = false
     }
 }
