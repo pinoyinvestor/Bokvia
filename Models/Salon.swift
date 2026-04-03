@@ -19,6 +19,14 @@ struct DiscoverSalon: Decodable, Identifiable {
     let seekingTalent: Bool?
 }
 
+struct PaginatedSalons: Decodable {
+    let items: [DiscoverSalon]
+    let total: Int
+    let page: Int
+    let pageSize: Int
+    let hasMore: Bool
+}
+
 struct SalonDetail: Decodable {
     let id: String
     let slug: String

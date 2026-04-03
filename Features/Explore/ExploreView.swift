@@ -14,7 +14,7 @@ struct ExploreView: View {
     @State private var page = 1
     @State private var hasMore = true
     @State private var errorMessage: String?
-    @State private var homeVisitOnly = false
+    @State private var activeWorkMode: String? = nil
 
     var initialSearch: String = ""
     var initialCategory: String? = nil
@@ -126,7 +126,44 @@ struct ExploreView: View {
                 }
             }
 
-            // Sort + view toggle + home visit filter
+            // Work mode pills — "Var?"
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Text(appState.isSv ? "Var?" : "Where?")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    ForEach([
+                        ("AT_SALON", "🏪", "Salong", "Salon"),
+                        ("AT_PROVIDER", "🏠", "Mottagning", "Studio"),
+                        ("HOME_VISIT", "🚗", "Hembesök", "Home visit"),
+                    ], id: \.0) { mode, icon, sv, en in
+                        Button {
+                            activeWorkMode = activeWorkMode == mode ? nil : mode
+                            Task { await loadProviders() }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(icon)
+                                Text(appState.isSv ? sv : en)
+                            }
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(activeWorkMode == mode ? BokviaTheme.accent : Color(.secondarySystemBackground))
+                            .foregroundStyle(activeWorkMode == mode ? .white : .primary)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(activeWorkMode == mode ? Color.clear : Color(.separator), lineWidth: 1)
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+            .padding(.vertical, 4)
+
+            // Sort + view toggle
             HStack(spacing: 10) {
                 Menu {
                     ForEach(SortOption.allCases, id: \.self) { option in
@@ -147,23 +184,6 @@ struct ExploreView: View {
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                }
-
-                Button {
-                    homeVisitOnly.toggle()
-                    Task { await loadProviders() }
-                } label: {
-                    Text(appState.isSv ? "\u{1F697} Hembes\u{00F6}k" : "\u{1F697} Home visit")
-                        .font(.caption.weight(.medium))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(homeVisitOnly ? BokviaTheme.accent : Color(.tertiarySystemBackground))
-                        .foregroundStyle(homeVisitOnly ? .white : .secondary)
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(homeVisitOnly ? Color.clear : Color(.separator), lineWidth: 1)
-                        )
                 }
 
                 Spacer()
@@ -234,7 +254,7 @@ struct ExploreView: View {
         var path = "/api/providers/discover?lat=\(loc.latitude)&lng=\(loc.longitude)&sort=\(sortOption.rawValue)&page=1&pageSize=\(Config.defaultPageSize)"
         if let cat = activeCategory { path += "&category=\(cat)" }
         if let sub = activeSubcategory { path += "&subcategory=\(sub)" }
-        if homeVisitOnly { path += "&workMode=HOME_VISIT" }
+        if let wm = activeWorkMode { path += "&workMode=\(wm)" }
 
         do {
             let result = try await APIClient.shared.getNoAuth(path, as: PaginatedProviders.self)
@@ -253,7 +273,7 @@ struct ExploreView: View {
         var path = "/api/providers/discover?lat=\(loc.latitude)&lng=\(loc.longitude)&sort=\(sortOption.rawValue)&page=\(page)&pageSize=\(Config.defaultPageSize)"
         if let cat = activeCategory { path += "&category=\(cat)" }
         if let sub = activeSubcategory { path += "&subcategory=\(sub)" }
-        if homeVisitOnly { path += "&workMode=HOME_VISIT" }
+        if let wm = activeWorkMode { path += "&workMode=\(wm)" }
 
         do {
             let result = try await APIClient.shared.getNoAuth(path, as: PaginatedProviders.self)
