@@ -103,14 +103,17 @@ struct HomeView: View {
                         topRatedRow(topRated)
                     }
 
-                    // SECTION 2: Topp Behandlare nära dig — individual providers by rating
-                    if !topRatedProviders.isEmpty {
+                    // SECTION 2: Topp Behandlare nära dig — exclude those already in section 1
+                    let filteredProviders = topRatedProviders.filter { p in
+                        !topRated.contains(where: { $0.id == p.id })
+                    }
+                    if !filteredProviders.isEmpty {
                         sectionHeaderWithAction(
                             icon: "💇",
                             title: appState.isSv ? "Topp behandlare" : "Top Providers",
                             destination: "explore?sort=top_rated"
                         )
-                        topProviderRow(topRatedProviders)
+                        topProviderRow(filteredProviders)
                     }
 
                     // SECTION 3: Topp Salonger nära dig — salons by rating
