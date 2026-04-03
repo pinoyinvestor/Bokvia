@@ -38,6 +38,26 @@ struct NotificationsView: View {
     }
 
     private func notificationRow(_ notif: AppNotification) -> some View {
+        Group {
+            if hasNavigationTarget(notif) {
+                NavigationLink {
+                    destinationForNotification(notif)
+                } label: {
+                    notificationContent(notif)
+                }
+                .simultaneousGesture(TapGesture().onEnded {
+                    markAsRead(notif)
+                })
+            } else {
+                notificationContent(notif)
+                    .onTapGesture {
+                        markAsRead(notif)
+                    }
+            }
+        }
+    }
+
+    private func notificationContent(_ notif: AppNotification) -> some View {
         HStack(spacing: 12) {
             Text(notifEmoji(notif.type))
                 .font(.title2)
@@ -67,11 +87,36 @@ struct NotificationsView: View {
             }
         }
         .padding(.vertical, 4)
-        .onTapGesture {
-            Task {
-                struct Empty: Encodable {}
-                _ = try? await APIClient.shared.patch("/api/notifications/\(notif.id)/read", body: Empty(), as: EmptyResponse.self)
-            }
+    }
+
+    private func markAsRead(_ notif: AppNotification) {
+        guard !notif.isRead else { return }
+        Task {
+            struct Empty: Encodable {}
+            _ = try? await APIClient.shared.patch("/api/notifications/\(notif.id)/read", body: Empty(), as: EmptyResponse.self)
+            await load()
+        }
+    }
+
+    private func hasNavigationTarget(_ notif: AppNotification) -> Bool {
+        if notif.data?.bookingId != nil && notif.type.hasPrefix("booking") { return true }
+        if notif.data?.chatId != nil && notif.type == "new_message" { return true }
+        if notif.data?.providerId != nil { return true }
+        return false
+    }
+
+    @ViewBuilder
+    private func destinationForNotification(_ notif: AppNotification) -> some View {
+        if let bookingId = notif.data?.bookingId,
+           notif.type.hasPrefix("booking") {
+            BookingLoaderView(bookingId: bookingId)
+        } else if let chatId = notif.data?.chatId,
+                  notif.type == "new_message" {
+            ChatDetailView(chatId: chatId)
+        } else if let providerId = notif.data?.providerId {
+            ProviderProfileView(slug: providerId)
+        } else {
+            EmptyView()
         }
     }
 
@@ -107,5 +152,39 @@ struct NotificationsView: View {
         struct Empty: Encodable {}
         _ = try? await APIClient.shared.patch("/api/notifications/read-all", body: Empty(), as: EmptyResponse.self)
         await load()
+    }
+}
+
+/// Fetches a booking by ID then shows BookingDetailView
+struct BookingLoaderView: View {
+    let bookingId: String
+    @State private var booking: Booking?
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+
+    // Built by Christos Ferlachidis & Daniel Hedenberg
+
+    var body: some View {
+        Group {
+            if isLoading {
+                LoadingView()
+            } else if let booking = booking {
+                BookingDetailView(booking: booking)
+            } else {
+                ContentUnavailableView(
+                    "Booking not found",
+                    systemImage: "calendar.badge.exclamationmark",
+                    description: Text(errorMessage ?? "")
+                )
+            }
+        }
+        .task {
+            do {
+                booking = try await APIClient.shared.get("/api/bookings/\(bookingId)", as: Booking.self)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isLoading = false
+        }
     }
 }

@@ -175,6 +175,26 @@ struct ProfileView: View {
                 }
             }
 
+            // Become provider/salon (CUSTOMER only, no existing profiles)
+            if appState.activeProfileType == "CUSTOMER" {
+                Section(appState.isSv ? "Vill du erbjuda tjänster?" : "Want to offer services?") {
+                    if !appState.profiles.contains(where: { $0.type == "PROVIDER" }) {
+                        NavigationLink {
+                            BecomeProviderView()
+                        } label: {
+                            Label(appState.isSv ? "Bli behandlare" : "Become a provider", systemImage: "scissors")
+                        }
+                    }
+                    if !appState.profiles.contains(where: { $0.type == "SALON" }) {
+                        NavigationLink {
+                            CreateSalonView()
+                        } label: {
+                            Label(appState.isSv ? "Skapa salong" : "Create salon", systemImage: "building.2")
+                        }
+                    }
+                }
+            }
+
             // Support
             Section {
                 NavigationLink {
