@@ -106,24 +106,42 @@ struct ProviderProfileView: View {
                     .padding(.bottom, 100)
                 }
 
-                // Sticky book button
-                VStack {
-                    Spacer()
-                    Button {
-                        showBooking = true
-                    } label: {
-                        Text(appState.isSv ? "Boka tid" : "Book appointment")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(BokviaTheme.accent)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                // Sticky bottom booking bar
+                VStack(spacing: 0) {
+                    Divider()
+                    HStack(spacing: 12) {
+                        // Price info (from cheapest service)
+                        if let cheapest = services.min(by: { ($0.priceAmount ?? 0) < ($1.priceAmount ?? 0) }) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(appState.isSv ? "Från" : "From")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text(cheapest.priceFormatted)
+                                    .font(.headline)
+                            }
+                        }
+
+                        Spacer()
+
+                        Button {
+                            showBooking = true
+                        } label: {
+                            Text(appState.isSv ? "Boka nu" : "Book now")
+                                .font(.headline)
+                                .padding(.horizontal, 32)
+                                .padding(.vertical, 14)
+                                .background(BokviaTheme.accent)
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        .accessibilityLabel(appState.isSv ? "Boka tid" : "Book appointment")
                     }
                     .padding(.horizontal)
+                    .padding(.top, 12)
                     .padding(.bottom, 8)
-                    .background(.ultraThinMaterial)
                 }
+                .background(.ultraThinMaterial)
+                .ignoresSafeArea(.container, edges: .bottom)
             }
         }
         .navigationBarTitleDisplayMode(.inline)

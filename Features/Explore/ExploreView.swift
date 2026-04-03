@@ -62,25 +62,34 @@ struct ExploreView: View {
             .padding(.top, 8)
 
             // Category pills
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(categoryOptions, id: \.0) { slug, label in
-                        Button {
-                            activeCategory = activeCategory == slug ? nil : slug
-                            Task { await loadProviders() }
-                        } label: {
-                            Text(label)
-                                .font(.caption.weight(.medium))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(activeCategory == slug ? BokviaTheme.accent : Color(.secondarySystemBackground))
-                                .foregroundStyle(activeCategory == slug ? .white : .primary)
-                                .clipShape(Capsule())
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(categoryOptions, id: \.0) { slug, label in
+                            Button {
+                                let newCategory = activeCategory == slug ? nil : slug
+                                activeCategory = newCategory
+                                if let selected = newCategory {
+                                    withAnimation {
+                                        proxy.scrollTo(selected, anchor: .leading)
+                                    }
+                                }
+                                Task { await loadProviders() }
+                            } label: {
+                                Text(label)
+                                    .font(.caption.weight(.medium))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(activeCategory == slug ? BokviaTheme.accent : Color(.secondarySystemBackground))
+                                    .foregroundStyle(activeCategory == slug ? .white : .primary)
+                                    .clipShape(Capsule())
+                            }
+                            .id(slug)
                         }
                     }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
             }
 
             // Sort + view toggle

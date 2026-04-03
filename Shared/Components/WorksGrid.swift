@@ -3,6 +3,7 @@ import SwiftUI
 struct WorksGrid: View {
     let works: [Work]
     let onTap: (Work) -> Void
+    var showProviderName: Bool = false
 
     private let columns = [
         GridItem(.flexible(), spacing: 2),
@@ -13,8 +14,34 @@ struct WorksGrid: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 2) {
             ForEach(works) { work in
-                WorkCell(work: work)
-                    .onTapGesture { onTap(work) }
+                VStack(spacing: 0) {
+                    WorkCell(work: work)
+                        .onTapGesture { onTap(work) }
+
+                    if showProviderName, let provider = work.provider {
+                        NavigationLink {
+                            ProviderProfileView(slug: provider.slug ?? provider.id)
+                        } label: {
+                            HStack(spacing: 4) {
+                                AsyncImage(url: URL(string: provider.avatarUrl ?? "")) { image in
+                                    image.resizable().scaledToFill()
+                                } placeholder: {
+                                    Circle().fill(Color(.systemGray5))
+                                }
+                                .frame(width: 16, height: 16)
+                                .clipShape(Circle())
+
+                                Text(provider.displayName)
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
             }
         }
     }

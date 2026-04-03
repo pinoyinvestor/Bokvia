@@ -5,6 +5,10 @@ struct RoleSwitcherView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isSwitching = false
     @State private var errorMessage: String?
+    @State private var showDeleteProvider = false
+    @State private var showDeleteSalon = false
+    @State private var deleteConfirmText = ""
+    @State private var isDeleting = false
 
     private var currentType: String {
         appState.activeProfileType
@@ -83,6 +87,37 @@ struct RoleSwitcherView: View {
                         .foregroundStyle(.red)
                 }
             }
+
+            // Danger zone — delete provider or salon profile
+            if appState.profiles.contains(where: { $0.type == "PROVIDER" }) {
+                Section {
+                    Button(role: .destructive) {
+                        deleteConfirmText = ""
+                        showDeleteProvider = true
+                    } label: {
+                        Label(
+                            appState.isSv ? "Avsluta behandlarkonto" : "Delete provider account",
+                            systemImage: "person.badge.minus"
+                        )
+                    }
+                    .disabled(isDeleting)
+                }
+            }
+
+            if appState.profiles.contains(where: { $0.type == "SALON" }) {
+                Section {
+                    Button(role: .destructive) {
+                        deleteConfirmText = ""
+                        showDeleteSalon = true
+                    } label: {
+                        Label(
+                            appState.isSv ? "Avsluta salong" : "Delete salon",
+                            systemImage: "building.2.crop.circle.badge.minus"
+                        )
+                    }
+                    .disabled(isDeleting)
+                }
+            }
         }
         .navigationTitle(appState.isSv ? "Byt roll" : "Switch role")
         .navigationBarTitleDisplayMode(.inline)
@@ -90,6 +125,40 @@ struct RoleSwitcherView: View {
             ToolbarItem(placement: .cancellationAction) {
                 Button(appState.isSv ? "Stäng" : "Close") { dismiss() }
             }
+        }
+        .alert(
+            appState.isSv ? "Avsluta behandlarkonto?" : "Delete provider account?",
+            isPresented: $showDeleteProvider
+        ) {
+            TextField("RADERA", text: $deleteConfirmText)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.characters)
+            Button(appState.isSv ? "Radera" : "Delete", role: .destructive) {
+                Task { await deleteProfile(type: "provider") }
+            }
+            .disabled(deleteConfirmText.trimmingCharacters(in: .whitespaces).uppercased() != "RADERA")
+            Button(appState.isSv ? "Avbryt" : "Cancel", role: .cancel) {}
+        } message: {
+            Text(appState.isSv
+                 ? "Skriv \"RADERA\" för att bekräfta. Alla tjänster, bokningar och portfolio tas bort."
+                 : "Type \"RADERA\" to confirm. All services, bookings and portfolio will be removed.")
+        }
+        .alert(
+            appState.isSv ? "Avsluta salong?" : "Delete salon?",
+            isPresented: $showDeleteSalon
+        ) {
+            TextField("RADERA", text: $deleteConfirmText)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.characters)
+            Button(appState.isSv ? "Radera" : "Delete", role: .destructive) {
+                Task { await deleteProfile(type: "salon") }
+            }
+            .disabled(deleteConfirmText.trimmingCharacters(in: .whitespaces).uppercased() != "RADERA")
+            Button(appState.isSv ? "Avbryt" : "Cancel", role: .cancel) {}
+        } message: {
+            Text(appState.isSv
+                 ? "Skriv \"RADERA\" för att bekräfta. Salongen och alla dess data tas bort."
+                 : "Type \"RADERA\" to confirm. The salon and all its data will be removed.")
         }
     }
 
@@ -107,6 +176,25 @@ struct RoleSwitcherView: View {
         }
 
         isSwitching = false
+    }
+
+    private func deleteProfile(type: String) async {
+        guard deleteConfirmText.trimmingCharacters(in: .whitespaces).uppercased() == "RADERA" else { return }
+        isDeleting = true
+        errorMessage = nil
+        do {
+            try await APIClient.shared.delete("/api/profiles/\(type)")
+            // Switch back to CUSTOMER after deletion
+            if let customerProfile = appState.profiles.first(where: { $0.type == "CUSTOMER" }) {
+                await appState.switchProfile(customerProfile.id)
+            }
+            HapticManager.success()
+            dismiss()
+        } catch {
+            errorMessage = appState.isSv ? "Kunde inte radera profilen." : "Failed to delete profile."
+            HapticManager.error()
+        }
+        isDeleting = false
     }
 
     private func iconFor(_ type: String) -> String {

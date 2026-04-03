@@ -13,6 +13,10 @@ struct ProfileView: View {
     @State private var imagePicker = ImagePickerManager()
     @State private var photoSelection: PhotosPickerItem?
     @State private var isUploadingAvatar = false
+    @State private var isEditingName = false
+    @State private var editFirstName = ""
+    @State private var editLastName = ""
+    @State private var isSavingName = false
 
     var body: some View {
         List {
@@ -45,8 +49,47 @@ struct ProfileView: View {
                     .onTapGesture { showAvatarActionSheet = true }
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(appState.currentUser?.fullName ?? "")
-                            .font(.headline)
+                        if isEditingName {
+                            HStack(spacing: 6) {
+                                TextField(appState.isSv ? "Förnamn" : "First name", text: $editFirstName)
+                                    .font(.subheadline)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(maxWidth: 100)
+                                TextField(appState.isSv ? "Efternamn" : "Last name", text: $editLastName)
+                                    .font(.subheadline)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(maxWidth: 100)
+                            }
+                            HStack(spacing: 8) {
+                                Button {
+                                    Task { await saveName() }
+                                } label: {
+                                    if isSavingName {
+                                        ProgressView().controlSize(.small)
+                                    } else {
+                                        Text(appState.isSv ? "Spara" : "Save")
+                                            .font(.caption.weight(.semibold))
+                                    }
+                                }
+                                .disabled(editFirstName.trimmingCharacters(in: .whitespaces).isEmpty || editLastName.trimmingCharacters(in: .whitespaces).isEmpty || isSavingName)
+
+                                Button {
+                                    isEditingName = false
+                                } label: {
+                                    Text(appState.isSv ? "Avbryt" : "Cancel")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        } else {
+                            Text(appState.currentUser?.fullName ?? "")
+                                .font(.headline)
+                                .onTapGesture {
+                                    editFirstName = appState.currentUser?.firstName ?? ""
+                                    editLastName = appState.currentUser?.lastName ?? ""
+                                    isEditingName = true
+                                }
+                        }
                         Text(appState.currentUser?.email ?? "")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -266,6 +309,42 @@ struct ProfileView: View {
         }
         isUploadingAvatar = false
         imagePicker.selectedImage = nil
+    }
+
+    private func saveName() async {
+        let first = editFirstName.trimmingCharacters(in: .whitespaces)
+        let last = editLastName.trimmingCharacters(in: .whitespaces)
+        guard !first.isEmpty, !last.isEmpty else { return }
+        isSavingName = true
+        struct NameBody: Encodable { let firstName: String; let lastName: String }
+        do {
+            _ = try await APIClient.shared.patch(
+                "/api/users/me",
+                body: NameBody(firstName: first, lastName: last),
+                as: EmptyResponse.self
+            )
+            appState.currentUser = UserSession(
+                id: appState.currentUser!.id,
+                email: appState.currentUser!.email,
+                firstName: first,
+                lastName: last,
+                avatarUrl: appState.currentUser!.avatarUrl,
+                phone: appState.currentUser!.phone,
+                gender: appState.currentUser!.gender,
+                dateOfBirth: appState.currentUser!.dateOfBirth,
+                locale: appState.currentUser!.locale,
+                roles: appState.currentUser!.roles,
+                activeProfileId: appState.currentUser!.activeProfileId,
+                activeProfileType: appState.currentUser!.activeProfileType,
+                needsOnboarding: appState.currentUser!.needsOnboarding,
+                profiles: appState.currentUser!.profiles
+            )
+            isEditingName = false
+            HapticManager.success()
+        } catch {
+            HapticManager.error()
+        }
+        isSavingName = false
     }
 
     private func roleIcon(_ type: String) -> String {
