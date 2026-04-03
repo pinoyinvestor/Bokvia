@@ -95,6 +95,21 @@ struct ProviderCard: View {
                         }
                     }
                 }
+
+                // Work mode badges
+                if let modes = provider.workModes, !modes.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(modes, id: \.self) { mode in
+                            Text(workModeLabel(mode, locale: locale))
+                                .font(.caption2.weight(.medium))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(mode == "HOME_VISIT" ? Color.orange.opacity(0.12) : Color(.tertiarySystemBackground))
+                                .foregroundStyle(mode == "HOME_VISIT" ? .orange : .secondary)
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
             }
 
             Spacer()
@@ -115,5 +130,15 @@ struct ProviderCard: View {
         .padding(12)
         .background(Color(.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private func workModeLabel(_ mode: String, locale: String) -> String {
+    let sv = locale == "sv"
+    switch mode {
+    case "HOME_VISIT": return sv ? "\u{1F697} Hembes\u{00F6}k" : "\u{1F697} Home visit"
+    case "AT_SALON": return sv ? "\u{1F3EA} Salong" : "\u{1F3EA} Salon"
+    case "AT_PROVIDER": return sv ? "\u{1F3E0} Egen lokal" : "\u{1F3E0} Own location"
+    default: return mode
     }
 }
