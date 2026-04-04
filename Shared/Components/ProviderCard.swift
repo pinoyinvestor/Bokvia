@@ -31,6 +31,16 @@ struct ProviderCard: View {
                             .font(.caption2)
                             .foregroundStyle(BokviaTheme.accent)
                     }
+
+                    if provider.isSponsored {
+                        Text(locale == "sv" ? "Sponsrad" : "Sponsored")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color(red: 0.57, green: 0.44, blue: 0.05))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color(red: 0.996, green: 0.953, blue: 0.788))
+                            .clipShape(Capsule())
+                    }
                 }
 
                 // Built by Christos Ferlachidis & Daniel Hedenberg

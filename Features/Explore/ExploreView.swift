@@ -15,6 +15,10 @@ struct ExploreView: View {
     @State private var hasMore = true
     @State private var errorMessage: String?
     @State private var activeWorkMode: String? = nil
+    @State private var salons: [DiscoverSalon] = []
+    @State private var gridView: GridTab = .providers
+
+    enum GridTab { case providers, salons }
 
     var initialSearch: String = ""
     var initialCategory: String? = nil
@@ -218,22 +222,92 @@ struct ExploreView: View {
                 LoadingView()
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(providers) { provider in
-                            NavigationLink {
-                                ProviderProfileView(slug: provider.slug)
+                    VStack(spacing: 16) {
+                        // Grid toggle: Behandlare | Salonger
+                        HStack(spacing: 8) {
+                            Button {
+                                gridView = .providers
                             } label: {
-                                ProviderCard(provider: provider, locale: appState.language)
+                                Text(appState.isSv ? "Behandlare" : "Providers")
+                                    .font(.subheadline.weight(.semibold))
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 8)
+                                    .background(gridView == .providers ? Color.primary : Color(.secondarySystemBackground))
+                                    .foregroundStyle(gridView == .providers ? Color(.systemBackground) : .primary)
+                                    .clipShape(Capsule())
+                                    .overlay(Capsule().stroke(gridView == .providers ? Color.clear : Color(.separator), lineWidth: 1.5))
                             }
-                            .foregroundStyle(.primary)
-                            .onAppear {
-                                if provider.id == providers.last?.id && hasMore {
-                                    Task { await loadMore() }
+                            Button {
+                                gridView = .salons
+                            } label: {
+                                Text(appState.isSv ? "Salonger" : "Salons")
+                                    .font(.subheadline.weight(.semibold))
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 8)
+                                    .background(gridView == .salons ? Color.primary : Color(.secondarySystemBackground))
+                                    .foregroundStyle(gridView == .salons ? Color(.systemBackground) : .primary)
+                                    .clipShape(Capsule())
+                                    .overlay(Capsule().stroke(gridView == .salons ? Color.clear : Color(.separator), lineWidth: 1.5))
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+
+                        // 3-column grid
+                        let gridItems = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
+                        LazyVGrid(columns: gridItems, spacing: 16) {
+                            if gridView == .providers {
+                                ForEach(providers.prefix(12)) { p in
+                                    NavigationLink {
+                                        ProviderProfileView(slug: p.slug)
+                                    } label: {
+                                        ExploreGridCell(
+                                            imageUrl: p.avatarUrl,
+                                            name: p.displayName,
+                                            rating: p.ratingAvg,
+                                            isSponsored: p.isSponsored,
+                                            isSv: appState.isSv
+                                        )
+                                    }
+                                    .foregroundStyle(.primary)
+                                }
+                            } else {
+                                ForEach(salons.prefix(12)) { s in
+                                    NavigationLink {
+                                        SalonProfileView(slug: s.slug)
+                                    } label: {
+                                        ExploreGridCell(
+                                            imageUrl: s.logoUrl,
+                                            name: s.name,
+                                            rating: s.ratingAvg,
+                                            isSponsored: false,
+                                            isSv: appState.isSv
+                                        )
+                                    }
+                                    .foregroundStyle(.primary)
                                 }
                             }
                         }
+                        .padding(.horizontal)
+
+                        // Provider list
+                        LazyVStack(spacing: 8) {
+                            ForEach(providers) { provider in
+                                NavigationLink {
+                                    ProviderProfileView(slug: provider.slug)
+                                } label: {
+                                    ProviderCard(provider: provider, locale: appState.language)
+                                }
+                                .foregroundStyle(.primary)
+                                .onAppear {
+                                    if provider.id == providers.last?.id && hasMore {
+                                        Task { await loadMore() }
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
                     }
-                    .padding(.horizontal)
                 }
             }
         }
@@ -257,13 +331,21 @@ struct ExploreView: View {
         if let wm = activeWorkMode { path += "&workMode=\(wm)" }
 
         do {
-            let result = try await APIClient.shared.getNoAuth(path, as: PaginatedProviders.self)
-            providers = result.items
-            hasMore = result.hasMore
+            let result = try await APIClient.shared.getNoAuth(path, as: ProviderDiscoverWrapper.self)
+            providers = result.data.items
+            hasMore = result.data.hasMore
         } catch {
             providers = []
             errorMessage = appState.isSv ? "Kunde inte ladda. Försök igen." : "Failed to load. Try again."
         }
+        // Load salons for grid
+        do {
+            let salonResult = try await APIClient.shared.getNoAuth(
+                "/api/salons/discover?lat=\(loc.latitude)&lng=\(loc.longitude)&radius=10",
+                as: SalonDiscoverWrapper.self
+            )
+            salons = salonResult.data.items
+        } catch { /* salons are optional for grid */ }
         isLoading = false
     }
 
@@ -276,9 +358,9 @@ struct ExploreView: View {
         if let wm = activeWorkMode { path += "&workMode=\(wm)" }
 
         do {
-            let result = try await APIClient.shared.getNoAuth(path, as: PaginatedProviders.self)
-            providers.append(contentsOf: result.items)
-            hasMore = result.hasMore
+            let result = try await APIClient.shared.getNoAuth(path, as: ProviderDiscoverWrapper.self)
+            providers.append(contentsOf: result.data.items)
+            hasMore = result.data.hasMore
         } catch {
             page -= 1
             errorMessage = appState.isSv ? "Kunde inte ladda mer." : "Failed to load more."
@@ -291,12 +373,76 @@ struct ExploreView: View {
         errorMessage = nil
         let q = searchText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         do {
-            let result = try await APIClient.shared.getNoAuth("/api/providers/search?q=\(q)", as: PaginatedProviders.self)
-            providers = result.items
-            hasMore = result.hasMore
+            let result = try await APIClient.shared.getNoAuth("/api/providers/search?q=\(q)", as: ProviderDiscoverWrapper.self)
+            providers = result.data.items
+            hasMore = result.data.hasMore
         } catch {
             errorMessage = appState.isSv ? "Sökningen misslyckades." : "Search failed."
         }
         isLoading = false
+    }
+}
+
+// MARK: - API response wrappers
+private struct ProviderDiscoverWrapper: Decodable {
+    let data: PaginatedProviders
+}
+
+private struct SalonDiscoverWrapper: Decodable {
+    let data: PaginatedSalons
+}
+
+// MARK: - Grid cell for Behandlare/Salonger grid
+struct ExploreGridCell: View {
+    let imageUrl: String?
+    let name: String
+    let rating: Double
+    let isSponsored: Bool
+    let isSv: Bool
+
+    // Built by Christos Ferlachidis & Daniel Hedenberg
+
+    var body: some View {
+        VStack(spacing: 4) {
+            AsyncImage(url: URL(string: imageUrl ?? "")) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                Circle()
+                    .fill(Color(.tertiarySystemBackground))
+                    .overlay(
+                        Text(String(name.prefix(1)))
+                            .font(.title3.bold())
+                            .foregroundStyle(.secondary)
+                    )
+            }
+            .frame(width: 72, height: 72)
+            .clipShape(Circle())
+
+            Text(name)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            if rating > 0 {
+                HStack(spacing: 2) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.orange)
+                    Text(String(format: "%.1f", rating))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if isSponsored {
+                Text(isSv ? "Sponsrad" : "Sponsored")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Color(red: 0.57, green: 0.44, blue: 0.05))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Color(red: 0.996, green: 0.953, blue: 0.788))
+                    .clipShape(Capsule())
+            }
+        }
     }
 }
