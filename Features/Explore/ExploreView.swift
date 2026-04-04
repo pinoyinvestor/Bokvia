@@ -17,6 +17,7 @@ struct ExploreView: View {
     @State private var activeWorkMode: String? = nil
     @State private var salons: [DiscoverSalon] = []
     @State private var gridView: GridTab = .providers
+    @State private var apiCategories: [APICategory] = []
 
     enum GridTab { case providers, salons }
 
@@ -37,18 +38,19 @@ struct ExploreView: View {
         }
     }
 
-    private let categoryOptions = [
-        ("hair", "💇 Hår"), ("nails", "💅 Naglar"), ("lashes", "👁️ Fransar"),
-        ("skin", "🧴 Hud"), ("tattoo", "🎨 Tatuering"),
+    private let categoryDisplay: [String: (icon: String, sv: String, en: String)] = [
+        "hair": ("💇", "Hår", "Hair"),
+        "nails": ("💅", "Naglar", "Nails"),
+        "lashes": ("👁️", "Fransar", "Lashes"),
+        "skin": ("🧴", "Hud", "Skin"),
+        "tattoo": ("🎨", "Tatuering", "Tattoo"),
     ]
 
-    private let subcategoryMap: [String: [(slug: String, label: String)]] = [
-        "hair": [("haircut", "Klippning"), ("coloring", "Färgning"), ("styling", "Styling"), ("extensions", "Extensions")],
-        "nails": [("manicure", "Manikyr"), ("pedicure", "Pedikyr"), ("gel", "Gel"), ("acrylics", "Akryl")],
-        "lashes": [("extensions_l", "Extensions"), ("lift", "Lash lift"), ("tint", "Färgning")],
-        "skin": [("facial", "Ansiktsbehandling"), ("peeling", "Peeling"), ("laser", "Laser")],
-        "tattoo": [("tattoo_new", "Ny tatuering"), ("cover_up", "Cover-up"), ("removal", "Borttagning")],
-    ]
+    /// The active category stores the UUID from the API, not the slug
+    private var activeCategorySlug: String? {
+        guard let id = activeCategory else { return nil }
+        return apiCategories.first(where: { $0.id == id })?.slug
+    }
 
     // Built by Christos Ferlachidis & Daniel Hedenberg
 
@@ -75,13 +77,15 @@ struct ExploreView: View {
             .padding(.horizontal)
             .padding(.top, 8)
 
-            // Category pills
+            // Category pills — uses UUIDs from API
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(categoryOptions, id: \.0) { slug, label in
+                        ForEach(apiCategories, id: \.id) { cat in
+                            let display = categoryDisplay[cat.slug]
+                            let label = display.map { "\($0.icon) \(appState.isSv ? $0.sv : $0.en)" } ?? (appState.isSv ? cat.nameSv : (cat.nameEn ?? cat.nameSv))
                             Button {
-                                let newCategory = activeCategory == slug ? nil : slug
+                                let newCategory = activeCategory == cat.id ? nil : cat.id
                                 activeCategory = newCategory
                                 activeSubcategory = nil
                                 if let selected = newCategory {
@@ -95,11 +99,11 @@ struct ExploreView: View {
                                     .font(.caption.weight(.medium))
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
-                                    .background(activeCategory == slug ? BokviaTheme.accent : Color(.secondarySystemBackground))
-                                    .foregroundStyle(activeCategory == slug ? .white : .primary)
+                                    .background(activeCategory == cat.id ? BokviaTheme.accent : Color(.secondarySystemBackground))
+                                    .foregroundStyle(activeCategory == cat.id ? .white : .primary)
                                     .clipShape(Capsule())
                             }
-                            .id(slug)
+                            .id(cat.id)
                         }
                     }
                     .padding(.horizontal)
@@ -107,21 +111,23 @@ struct ExploreView: View {
                 }
             }
 
-            // Subcategory pills — show when a category is selected
-            if let cat = activeCategory, let subs = subcategoryMap[cat] {
+            // Subcategory pills — show when a category is selected, uses UUIDs
+            if let catId = activeCategory,
+               let cat = apiCategories.first(where: { $0.id == catId }),
+               !cat.subcategories.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        ForEach(subs, id: \.slug) { sub in
+                        ForEach(cat.subcategories, id: \.id) { sub in
                             Button {
-                                activeSubcategory = activeSubcategory == sub.slug ? nil : sub.slug
+                                activeSubcategory = activeSubcategory == sub.id ? nil : sub.id
                                 Task { await loadProviders() }
                             } label: {
-                                Text(sub.label)
+                                Text(appState.isSv ? sub.nameSv : (sub.nameEn ?? sub.nameSv))
                                     .font(.caption2.weight(.medium))
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
-                                    .background(activeSubcategory == sub.slug ? BokviaTheme.accent.opacity(0.15) : Color(.tertiarySystemBackground))
-                                    .foregroundStyle(activeSubcategory == sub.slug ? BokviaTheme.accent : .secondary)
+                                    .background(activeSubcategory == sub.id ? BokviaTheme.accent.opacity(0.15) : Color(.tertiarySystemBackground))
+                                    .foregroundStyle(activeSubcategory == sub.id ? BokviaTheme.accent : .secondary)
                                     .clipShape(Capsule())
                             }
                         }
@@ -314,8 +320,17 @@ struct ExploreView: View {
         .navigationTitle(appState.isSv ? "Utforska" : "Explore")
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            // Load categories from API so we get UUIDs
+            await loadCategories()
             if !initialSearch.isEmpty { searchText = initialSearch }
-            if let cat = initialCategory { activeCategory = cat }
+            if let cat = initialCategory {
+                // initialCategory may be a slug — resolve to UUID
+                if let found = apiCategories.first(where: { $0.slug == cat }) {
+                    activeCategory = found.id
+                } else {
+                    activeCategory = cat
+                }
+            }
             await loadProviders()
         }
     }
@@ -326,8 +341,8 @@ struct ExploreView: View {
         page = 1
         let loc = LocationManager.shared
         var path = "/api/providers/discover?lat=\(loc.latitude)&lng=\(loc.longitude)&sort=\(sortOption.rawValue)&page=1&pageSize=\(Config.defaultPageSize)"
-        if let cat = activeCategory { path += "&category=\(cat)" }
-        if let sub = activeSubcategory { path += "&subcategory=\(sub)" }
+        if let cat = activeCategory { path += "&categoryId=\(cat)" }
+        if let sub = activeSubcategory { path += "&subcategoryId=\(sub)" }
         if let wm = activeWorkMode { path += "&workMode=\(wm)" }
 
         do {
@@ -338,10 +353,12 @@ struct ExploreView: View {
             providers = []
             errorMessage = appState.isSv ? "Kunde inte ladda. Försök igen." : "Failed to load. Try again."
         }
-        // Load salons for grid
+        // Load salons for grid — pass category filter so salons sync with selected category
         do {
+            var salonPath = "/api/salons/discover?lat=\(loc.latitude)&lng=\(loc.longitude)&radius=10"
+            if let cat = activeCategory { salonPath += "&categoryId=\(cat)" }
             let salonResult = try await APIClient.shared.getNoAuth(
-                "/api/salons/discover?lat=\(loc.latitude)&lng=\(loc.longitude)&radius=10",
+                salonPath,
                 as: SalonDiscoverWrapper.self
             )
             salons = salonResult.data.items
@@ -353,8 +370,8 @@ struct ExploreView: View {
         page += 1
         let loc = LocationManager.shared
         var path = "/api/providers/discover?lat=\(loc.latitude)&lng=\(loc.longitude)&sort=\(sortOption.rawValue)&page=\(page)&pageSize=\(Config.defaultPageSize)"
-        if let cat = activeCategory { path += "&category=\(cat)" }
-        if let sub = activeSubcategory { path += "&subcategory=\(sub)" }
+        if let cat = activeCategory { path += "&categoryId=\(cat)" }
+        if let sub = activeSubcategory { path += "&subcategoryId=\(sub)" }
         if let wm = activeWorkMode { path += "&workMode=\(wm)" }
 
         do {
@@ -381,6 +398,17 @@ struct ExploreView: View {
         }
         isLoading = false
     }
+
+    private func loadCategories() async {
+        let allowed = Set(["hair", "nails", "lashes", "skin", "tattoo"])
+        do {
+            let result = try await APIClient.shared.getNoAuth("/api/search/categories", as: CategoriesWrapper.self)
+            apiCategories = result.data.filter { allowed.contains($0.slug) }
+        } catch {
+            // Fallback — empty categories, pills won't show but page still works
+            apiCategories = []
+        }
+    }
 }
 
 // MARK: - API response wrappers
@@ -390,6 +418,25 @@ private struct ProviderDiscoverWrapper: Decodable {
 
 private struct SalonDiscoverWrapper: Decodable {
     let data: PaginatedSalons
+}
+
+private struct CategoriesWrapper: Decodable {
+    let data: [APICategory]
+}
+
+struct APICategory: Decodable, Identifiable {
+    let id: String
+    let slug: String
+    let nameSv: String
+    let nameEn: String?
+    let subcategories: [APISubcategory]
+}
+
+struct APISubcategory: Decodable, Identifiable {
+    let id: String
+    let slug: String
+    let nameSv: String
+    let nameEn: String?
 }
 
 // MARK: - Grid cell for Behandlare/Salonger grid
