@@ -254,8 +254,8 @@ struct ExploreView: View {
                         .padding(.horizontal)
 
                         // 3-column grid
-                        let gridItems = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
-                        LazyVGrid(columns: gridItems, spacing: 16) {
+                        let gridItems = Array(repeating: GridItem(.flexible(), spacing: 8), count: 3)
+                        LazyVGrid(columns: gridItems, spacing: 8) {
                             if gridView == .providers {
                                 ForEach(providers.prefix(12)) { p in
                                     NavigationLink {
@@ -411,15 +411,15 @@ struct ExploreGridCell: View {
                     .fill(Color(.tertiarySystemBackground))
                     .overlay(
                         Text(String(name.prefix(1)))
-                            .font(.title3.bold())
+                            .font(.system(size: 20, weight: .bold))
                             .foregroundStyle(.secondary)
                     )
             }
-            .frame(width: 72, height: 72)
+            .frame(width: 64, height: 64)
             .clipShape(Circle())
 
             Text(name)
-                .font(.caption.weight(.semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .lineLimit(1)
                 .truncationMode(.tail)
 
@@ -429,17 +429,17 @@ struct ExploreGridCell: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.orange)
                     Text(String(format: "%.1f", rating))
-                        .font(.caption2)
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
             }
 
             if isSponsored {
                 Text(isSv ? "Sponsrad" : "Sponsored")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(Color(red: 0.57, green: 0.44, blue: 0.05))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
                     .background(Color(red: 0.996, green: 0.953, blue: 0.788))
                     .clipShape(Capsule())
             }
