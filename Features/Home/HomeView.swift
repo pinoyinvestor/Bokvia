@@ -103,20 +103,7 @@ struct HomeView: View {
                         topRatedRow(topRated)
                     }
 
-                    // SECTION 2: Topp Behandlare nära dig — exclude those already in section 1
-                    let filteredProviders = topRatedProviders.filter { p in
-                        !topRated.contains(where: { $0.id == p.id })
-                    }
-                    if !filteredProviders.isEmpty {
-                        sectionHeaderWithAction(
-                            icon: "💇",
-                            title: appState.isSv ? "Topp behandlare" : "Top Providers",
-                            destination: "explore?sort=top_rated"
-                        )
-                        topProviderRow(filteredProviders)
-                    }
-
-                    // SECTION 3: Topp Salonger nära dig — salons by rating
+                    // SECTION 2: Topp Salonger
                     if !topSalons.isEmpty {
                         sectionHeaderWithAction(
                             icon: "🏪",
@@ -124,6 +111,19 @@ struct HomeView: View {
                             destination: "explore?tab=salons"
                         )
                         salonRow(topSalons)
+                    }
+
+                    // SECTION 3: Mest bokade denna månaden
+                    let filteredProviders = topRatedProviders.filter { p in
+                        !topRated.contains(where: { $0.id == p.id }) && (p.bookingsCount ?? 0) > 0
+                    }
+                    if !filteredProviders.isEmpty {
+                        sectionHeaderWithAction(
+                            icon: "🔥",
+                            title: appState.isSv ? "Mest bokade denna månaden" : "Most booked this month",
+                            destination: "explore?sort=most_booked"
+                        )
+                        topProviderRow(filteredProviders)
                     }
                 }
             }
