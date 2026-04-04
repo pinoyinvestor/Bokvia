@@ -18,8 +18,27 @@ struct ExploreView: View {
     @State private var salons: [DiscoverSalon] = []
     @State private var gridView: GridTab = .providers
     @State private var apiCategories: [APICategory] = []
+    @State private var showCategoryPicker = false
+    @State private var pickerSelectedIds: Set<String> = []
 
     enum GridTab { case providers, salons }
+
+    private static let preferredCategoryKey = "preferred_explore_category_ids"
+
+    private var preferredCategoryIds: Set<String> {
+        let saved = UserDefaults.standard.stringArray(forKey: Self.preferredCategoryKey) ?? []
+        return Set(saved)
+    }
+
+    private var visibleCategories: [APICategory] {
+        let prefs = preferredCategoryIds
+        if prefs.isEmpty { return apiCategories }
+        return apiCategories.filter { prefs.contains($0.id) }
+    }
+
+    private func savePreferredCategories(_ ids: Set<String>) {
+        UserDefaults.standard.set(Array(ids), forKey: Self.preferredCategoryKey)
+    }
 
     var initialSearch: String = ""
     var initialCategory: String? = nil
@@ -77,11 +96,11 @@ struct ExploreView: View {
             .padding(.horizontal)
             .padding(.top, 8)
 
-            // Category pills — uses UUIDs from API
+            // Category pills — uses UUIDs from API, filtered by preferences
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(apiCategories, id: \.id) { cat in
+                        ForEach(visibleCategories, id: \.id) { cat in
                             let display = categoryDisplay[cat.slug]
                             let label = display.map { "\($0.icon) \(appState.isSv ? $0.sv : $0.en)" } ?? (appState.isSv ? cat.nameSv : (cat.nameEn ?? cat.nameSv))
                             Button {
@@ -105,15 +124,59 @@ struct ExploreView: View {
                             }
                             .id(cat.id)
                         }
+                        // Settings button at end of category row
+                        Button {
+                            if preferredCategoryIds.isEmpty {
+                                pickerSelectedIds = Set(apiCategories.map(\.id))
+                            } else {
+                                pickerSelectedIds = preferredCategoryIds
+                            }
+                            showCategoryPicker = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 36, height: 36)
+                                .background(Color(.secondarySystemBackground))
+                                .clipShape(Circle())
+                        }
+                        .accessibilityLabel(appState.isSv ? "Anpassa kategorier" : "Customize categories")
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 8)
                 }
             }
+            .sheet(isPresented: $showCategoryPicker) {
+                CategoryPickerSheet(
+                    categories: apiCategories,
+                    selectedIds: $pickerSelectedIds,
+                    isSv: appState.isSv,
+                    categoryDisplay: categoryDisplay,
+                    onSave: {
+                        let allIds = Set(apiCategories.map(\.id))
+                        if pickerSelectedIds == allIds {
+                            savePreferredCategories([])
+                        } else {
+                            savePreferredCategories(pickerSelectedIds)
+                        }
+                        if let active = activeCategory, !pickerSelectedIds.contains(active) {
+                            activeCategory = nil
+                            activeSubcategory = nil
+                            Task { await loadProviders() }
+                        }
+                        showCategoryPicker = false
+                    },
+                    onReset: {
+                        savePreferredCategories([])
+                        showCategoryPicker = false
+                    }
+                )
+                .presentationDetents([.medium])
+            }
 
             // Subcategory pills — show when a category is selected, uses UUIDs
             if let catId = activeCategory,
-               let cat = apiCategories.first(where: { $0.id == catId }),
+               let cat = visibleCategories.first(where: { $0.id == catId }),
                !cat.subcategories.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
@@ -437,6 +500,100 @@ struct APISubcategory: Decodable, Identifiable {
     let slug: String
     let nameSv: String
     let nameEn: String?
+}
+
+// MARK: - Category picker sheet
+struct CategoryPickerSheet: View {
+    let categories: [APICategory]
+    @Binding var selectedIds: Set<String>
+    let isSv: Bool
+    let categoryDisplay: [String: (icon: String, sv: String, en: String)]
+    let onSave: () -> Void
+    let onReset: () -> Void
+
+    // Built by Christos Ferlachidis & Daniel Hedenberg
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Text(isSv ? "Visa bara det du bryr dig om" : "Show only what you care about")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+                    .padding(.bottom, 16)
+
+                VStack(spacing: 8) {
+                    ForEach(categories, id: \.id) { cat in
+                        let isSelected = selectedIds.contains(cat.id)
+                        let display = categoryDisplay[cat.slug]
+                        let label = display.map { "\($0.icon) \(isSv ? $0.sv : $0.en)" } ?? (isSv ? cat.nameSv : (cat.nameEn ?? cat.nameSv))
+
+                        Button {
+                            if isSelected && selectedIds.count > 1 {
+                                selectedIds.remove(cat.id)
+                            } else if !isSelected {
+                                selectedIds.insert(cat.id)
+                            }
+                        } label: {
+                            HStack {
+                                Text(label)
+                                    .font(.body.weight(isSelected ? .semibold : .regular))
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                ZStack {
+                                    Circle()
+                                        .stroke(isSelected ? BokviaTheme.accent : Color(.separator), lineWidth: 2)
+                                        .frame(width: 24, height: 24)
+                                    if isSelected {
+                                        Circle()
+                                            .fill(BokviaTheme.accent)
+                                            .frame(width: 24, height: 24)
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundStyle(.white)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(isSelected ? BokviaTheme.accent.opacity(0.08) : Color(.secondarySystemBackground))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(isSelected ? BokviaTheme.accent : Color(.separator), lineWidth: 1.5)
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal)
+
+                Spacer()
+
+                VStack(spacing: 12) {
+                    Button(action: onSave) {
+                        Text(isSv ? "Spara" : "Save")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color.primary)
+                            .foregroundStyle(Color(.systemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                    Button(action: onReset) {
+                        Text(isSv ? "Visa alla kategorier" : "Show all categories")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 16)
+            }
+            .navigationTitle(isSv ? "Välj kategorier" : "Choose categories")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
 }
 
 // MARK: - Grid cell for Behandlare/Salonger grid
