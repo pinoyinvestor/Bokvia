@@ -396,6 +396,57 @@ struct ExploreView: View {
             }
             await loadProviders()
         }
+        // Re-load when booking profile changes (family member switch)
+        .onChange(of: appState.activeBookingProfile?.id) { _, _ in
+            Task { await loadProviders() }
+        }
+    }
+
+    /// Derive segment query params from active booking profile or current user
+    private var segmentParams: String {
+        // If a family member is selected, use their segment
+        if let profile = appState.activeBookingProfile {
+            let seg = profile.segment
+            if seg != "UNSPECIFIED" {
+                let g = profile.gender ?? ""
+                return "&segment=\(seg)&gender=\(g)"
+            }
+            return ""
+        }
+        // Otherwise derive from the user's own gender + DOB
+        guard let user = appState.currentUser else { return "" }
+        let g = (user.gender ?? "").lowercased()
+        let dob = user.dateOfBirth
+        let seg = deriveUserSegment(gender: g, dateOfBirth: dob)
+        if seg != "UNSPECIFIED" {
+            return "&segment=\(seg)&gender=\(g)"
+        }
+        return ""
+    }
+
+    private func deriveUserSegment(gender: String, dateOfBirth: String?) -> String {
+        let g = gender.lowercased()
+        guard !g.isEmpty, g != "prefer-not", g != "prefer_not_to_say" else { return "UNSPECIFIED" }
+        if g == "non-binary" { return "UNSPECIFIED" }
+        let age = dateOfBirth.flatMap { calculateAgeFromString($0) }
+        if g == "male" || g == "man" {
+            if let a = age, a < 13 { return "BOY" }
+            if let a = age, a >= 65 { return "SENIOR" }
+            return "MAN"
+        }
+        if g == "female" || g == "woman" {
+            if let a = age, a < 13 { return "GIRL" }
+            if let a = age, a >= 65 { return "SENIOR" }
+            return "WOMAN"
+        }
+        return "UNSPECIFIED"
+    }
+
+    private func calculateAgeFromString(_ dob: String) -> Int? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let date = formatter.date(from: dob) else { return nil }
+        return Calendar.current.dateComponents([.year], from: date, to: Date()).year
     }
 
     private func loadProviders() async {
@@ -407,6 +458,7 @@ struct ExploreView: View {
         if let cat = activeCategory { path += "&categoryId=\(cat)" }
         if let sub = activeSubcategory { path += "&subcategoryId=\(sub)" }
         if let wm = activeWorkMode { path += "&workMode=\(wm)" }
+        path += segmentParams
 
         do {
             let result = try await APIClient.shared.getNoAuth(path, as: ProviderDiscoverWrapper.self)
@@ -436,6 +488,7 @@ struct ExploreView: View {
         if let cat = activeCategory { path += "&categoryId=\(cat)" }
         if let sub = activeSubcategory { path += "&subcategoryId=\(sub)" }
         if let wm = activeWorkMode { path += "&workMode=\(wm)" }
+        path += segmentParams
 
         do {
             let result = try await APIClient.shared.getNoAuth(path, as: ProviderDiscoverWrapper.self)
@@ -453,7 +506,7 @@ struct ExploreView: View {
         errorMessage = nil
         let q = searchText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         do {
-            let result = try await APIClient.shared.getNoAuth("/api/providers/search?q=\(q)", as: ProviderDiscoverWrapper.self)
+            let result = try await APIClient.shared.getNoAuth("/api/providers/search?q=\(q)\(segmentParams)", as: ProviderDiscoverWrapper.self)
             providers = result.data.items
             hasMore = result.data.hasMore
         } catch {

@@ -481,13 +481,47 @@ struct HomeView: View {
         .frame(width: 100)
     }
 
+    /// Derive segment query params from active booking profile or current user
+    private var segmentParams: String {
+        if let profile = appState.activeBookingProfile {
+            let seg = profile.segment
+            if seg != "UNSPECIFIED" {
+                let g = profile.gender ?? ""
+                return "&segment=\(seg)&gender=\(g)"
+            }
+            return ""
+        }
+        guard let user = appState.currentUser else { return "" }
+        let g = (user.gender ?? "").lowercased()
+        guard !g.isEmpty, g != "prefer-not", g != "prefer_not_to_say", g != "non-binary" else { return "" }
+        let dob = user.dateOfBirth
+        let age: Int? = dob.flatMap {
+            let fmt = DateFormatter()
+            fmt.dateFormat = "yyyy-MM-dd"
+            guard let date = fmt.date(from: $0) else { return nil }
+            return Calendar.current.dateComponents([.year], from: date, to: Date()).year
+        }
+        let seg: String
+        if g == "male" || g == "man" {
+            if let a = age, a < 13 { seg = "BOY" }
+            else if let a = age, a >= 65 { seg = "SENIOR" }
+            else { seg = "MAN" }
+        } else if g == "female" || g == "woman" {
+            if let a = age, a < 13 { seg = "GIRL" }
+            else if let a = age, a >= 65 { seg = "SENIOR" }
+            else { seg = "WOMAN" }
+        } else { return "" }
+        return "&segment=\(seg)&gender=\(g)"
+    }
+
     private func loadData() async {
         let loc = LocationManager.shared
         let lat = loc.hasLocation ? loc.latitude : Config.defaultLatitude
         let lng = loc.hasLocation ? loc.longitude : Config.defaultLongitude
+        let sp = segmentParams
 
         async let feedResult: HomeFeed? = try? await APIClient.shared.get(
-            "/api/feed/home?lat=\(lat)&lng=\(lng)&radius=\(Config.feedRadius)",
+            "/api/feed/home?lat=\(lat)&lng=\(lng)&radius=\(Config.feedRadius)\(sp)",
             as: HomeFeed.self
         )
         async let nextResult: NextBookingResponse? = try? await APIClient.shared.get(
@@ -499,7 +533,7 @@ struct HomeView: View {
             as: PaginatedSalons.self
         )
         async let topRatedResult: PaginatedProviders? = try? await APIClient.shared.getNoAuth(
-            "/api/providers/discover?lat=\(lat)&lng=\(lng)&radius=50&sort=top_rated&pageSize=10",
+            "/api/providers/discover?lat=\(lat)&lng=\(lng)&radius=50&sort=top_rated&pageSize=10\(sp)",
             as: PaginatedProviders.self
         )
 

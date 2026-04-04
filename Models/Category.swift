@@ -25,8 +25,14 @@ struct FamilyProfile: Decodable, Identifiable {
         guard let gender = gender else { return "UNSPECIFIED" }
         let age = dateOfBirth.flatMap { calculateAge($0) } ?? 30
         switch gender.uppercased() {
-        case "MALE": return age < 18 ? "BOY" : "MAN"
-        case "FEMALE": return age < 18 ? "GIRL" : "WOMAN"
+        case "MALE":
+            if age < 13 { return "BOY" }
+            if age >= 65 { return "SENIOR" }
+            return "MAN"
+        case "FEMALE":
+            if age < 13 { return "GIRL" }
+            if age >= 65 { return "SENIOR" }
+            return "WOMAN"
         default: return "UNSPECIFIED"
         }
     }
