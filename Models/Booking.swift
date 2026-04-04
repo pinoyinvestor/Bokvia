@@ -59,6 +59,7 @@ struct BookingProvider: Decodable {
     let displayName: String
     let slug: String?
     let avatarUrl: String?
+    let cancellationHours: Int?
 }
 
 struct BookingService: Decodable {

@@ -196,13 +196,23 @@ struct ProviderTodayView: View {
 
                 if booking.status == "CONFIRMED" {
                     actionButton(
-                        label: appState.isSv ? "Slutför" : "Complete",
+                        label: appState.isSv ? "Slutf\u00f6r" : "Complete",
                         icon: "checkmark.circle.fill",
                         bg: BokviaTheme.accentLight,
                         fg: BokviaTheme.accent,
-                        accessLabel: appState.isSv ? "Slutför bokning" : "Complete booking"
+                        accessLabel: appState.isSv ? "Slutf\u00f6r bokning" : "Complete booking"
                     ) {
                         await performAction(bookingId: booking.id, action: "complete")
+                    }
+
+                    actionButton(
+                        label: appState.isSv ? "Utebliven" : "No show",
+                        icon: "person.slash",
+                        bg: Color.orange.opacity(0.15),
+                        fg: .orange,
+                        accessLabel: appState.isSv ? "Markera som utebliven" : "Mark as no show"
+                    ) {
+                        await performAction(bookingId: booking.id, action: "no-show")
                     }
 
                     actionButton(

@@ -55,6 +55,24 @@ struct BookingDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal)
 
+                // Cancellation policy
+                if booking.statusEnum.isActive, let hours = booking.provider?.cancellationHours {
+                    HStack(spacing: 8) {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.secondary)
+                        Text(appState.isSv
+                            ? "Avboka senast \(hours)h innan bokad tid"
+                            : "Cancel at least \(hours)h before appointment")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal)
+                }
+
                 // Actions
                 if booking.statusEnum.isActive {
                     VStack(spacing: 12) {
