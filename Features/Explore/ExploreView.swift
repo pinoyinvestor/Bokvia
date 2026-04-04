@@ -16,6 +16,7 @@ struct ExploreView: View {
     @State private var errorMessage: String?
     @State private var activeWorkMode: String? = nil
     @State private var salons: [DiscoverSalon] = []
+    @State private var isLoadingMore = false
     @State private var gridView: GridTab = .providers
     @State private var apiCategories: [APICategory] = []
     @State private var showCategoryPicker = false
@@ -322,11 +323,11 @@ struct ExploreView: View {
                         }
                         .padding(.horizontal)
 
-                        // 3-column grid
+                        // 3-column grid with infinite scroll
                         let gridItems = Array(repeating: GridItem(.flexible(), spacing: 8), count: 3)
                         LazyVGrid(columns: gridItems, spacing: 8) {
                             if gridView == .providers {
-                                ForEach(providers.prefix(12)) { p in
+                                ForEach(Array(providers.enumerated()), id: \.element.id) { index, p in
                                     NavigationLink {
                                         ProviderProfileView(slug: p.slug)
                                     } label: {
@@ -339,9 +340,16 @@ struct ExploreView: View {
                                         )
                                     }
                                     .foregroundStyle(.primary)
+                                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                                    .onAppear {
+                                        // Load more when last item appears
+                                        if p.id == providers.last?.id && hasMore && !isLoadingMore {
+                                            Task { await loadMore() }
+                                        }
+                                    }
                                 }
                             } else {
-                                ForEach(salons.prefix(12)) { s in
+                                ForEach(salons) { s in
                                     NavigationLink {
                                         SalonProfileView(slug: s.slug)
                                     } label: {
@@ -354,28 +362,19 @@ struct ExploreView: View {
                                         )
                                     }
                                     .foregroundStyle(.primary)
+                                    .transition(.opacity.combined(with: .move(edge: .bottom)))
                                 }
                             }
                         }
                         .padding(.horizontal)
+                        .animation(.easeOut(duration: 0.3), value: providers.count)
+                        .animation(.easeOut(duration: 0.3), value: salons.count)
 
-                        // Provider list
-                        LazyVStack(spacing: 8) {
-                            ForEach(providers) { provider in
-                                NavigationLink {
-                                    ProviderProfileView(slug: provider.slug)
-                                } label: {
-                                    ProviderCard(provider: provider, locale: appState.language)
-                                }
-                                .foregroundStyle(.primary)
-                                .onAppear {
-                                    if provider.id == providers.last?.id && hasMore {
-                                        Task { await loadMore() }
-                                    }
-                                }
-                            }
+                        // Loading indicator for infinite scroll
+                        if gridView == .providers && isLoadingMore {
+                            ProgressView()
+                                .padding()
                         }
-                        .padding(.horizontal)
                     }
                 }
             }
@@ -482,9 +481,11 @@ struct ExploreView: View {
     }
 
     private func loadMore() async {
+        guard !isLoadingMore else { return }
+        isLoadingMore = true
         page += 1
         let loc = LocationManager.shared
-        var path = "/api/providers/discover?lat=\(loc.latitude)&lng=\(loc.longitude)&sort=\(sortOption.rawValue)&page=\(page)&pageSize=\(Config.defaultPageSize)"
+        var path = "/api/providers/discover?lat=\(loc.latitude)&lng=\(loc.longitude)&sort=\(sortOption.rawValue)&page=\(page)&pageSize=9"
         if let cat = activeCategory { path += "&categoryId=\(cat)" }
         if let sub = activeSubcategory { path += "&subcategoryId=\(sub)" }
         if let wm = activeWorkMode { path += "&workMode=\(wm)" }
@@ -498,6 +499,7 @@ struct ExploreView: View {
             page -= 1
             errorMessage = appState.isSv ? "Kunde inte ladda mer." : "Failed to load more."
         }
+        isLoadingMore = false
     }
 
     private func search() async {
