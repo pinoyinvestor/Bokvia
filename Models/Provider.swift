@@ -60,7 +60,6 @@ struct DiscoverSections: Decodable {
     let topSalons: [DiscoverSalon]?
     let sponsored: [DiscoverProvider]?
     let topRated: [DiscoverProvider]?
-    let mostBooked: [DiscoverProvider]?
     let openNow: [DiscoverProvider]?
 }
 
